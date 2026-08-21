@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      「それってエイゴ？」の OGP 画像テンプレート（1200x630）。
+      src/index.css のデザイントークン（判定スタジオ配色・丸ゴシック・判定スタンプ）を再現しています。
+
+      public/ogp.png の再生成コマンド（リポジトリルートで実行）:
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+        --headless=new --disable-gpu --force-device-scale-factor=1 --hide-scrollbars \
+        --window-size=1200,630 --virtual-time-budget=15000 \
+        --screenshot=public/ogp.png "file://$PWD/ogp/ogp.html"
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@700&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #eef5fa;
+        --surface: #ffffff;
+        --line: #dfeaf3;
+        --text: #33475b;
+        --muted: #5c7184;
+        --sky: #3ea8ff;
+        --out: #f2485a;
+        --out-dark: #b62f43;
+        --out-soft: #ffeef0;
+        --safe-dark: #0a7d5c;
+        --safe-soft: #e5faf3;
+      }
+
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'M PLUS Rounded 1c', sans-serif;
+      }
+
+      /* 白い丸角の判定カード */
+      .card {
+        width: 1080px;
+        height: 510px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+        background: var(--surface);
+        border: 4px solid var(--line);
+        border-radius: 48px;
+        box-shadow: 0 12px 40px rgba(84, 122, 165, 0.14);
+      }
+
+      .title {
+        font-weight: 800;
+        font-size: 104px;
+        letter-spacing: 0.04em;
+        line-height: 1.15;
+      }
+
+      .title__accent {
+        color: var(--out);
+      }
+
+      /* タイトル下の水玉アンダーライン */
+      .dots {
+        width: 364px; /* ドット1個 52px x 7個分（端の欠け防止） */
+        height: 22px;
+        background-image: radial-gradient(circle at center, var(--sky) 9px, transparent 10px);
+        background-size: 52px 22px;
+        background-position: center;
+        background-repeat: repeat-x;
+      }
+
+      .tagline {
+        margin-top: 4px;
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 32px;
+      }
+
+      /* 判定スタンプ（アウト=コーラル / セーフ=ミント） */
+      .stamps {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        gap: 56px;
+      }
+
+      .stamp {
+        padding: 14px 44px 20px;
+        text-align: center;
+        border: 5px solid currentColor;
+        border-radius: 26px;
+      }
+
+      .stamp--out {
+        color: var(--out-dark);
+        background: var(--out-soft);
+        transform: rotate(-3deg);
+      }
+
+      .stamp--safe {
+        color: var(--safe-dark);
+        background: var(--safe-soft);
+        transform: rotate(2.5deg);
+      }
+
+      .stamp__eyebrow {
+        display: block;
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: 0.35em;
+        margin-bottom: 2px;
+      }
+
+      .stamp__label {
+        font-weight: 800;
+        font-size: 46px;
+        line-height: 1.2;
+      }
+
+      .vs {
+        color: var(--muted);
+        font-weight: 800;
+        font-size: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1 class="title">それって<span class="title__accent">エイゴ</span>？</h1>
+      <div class="dots"></div>
+      <p class="tagline">英語禁止プレイのお供に。カタカナ語が英語かどうかをその場で判定</p>
+      <div class="stamps">
+        <div class="stamp stamp--out">
+          <span class="stamp__eyebrow">OUT</span>
+          <span class="stamp__label">アウト</span>
+        </div>
+        <span class="vs">or</span>
+        <div class="stamp stamp--safe">
+          <span class="stamp__eyebrow">SAFE</span>
+          <span class="stamp__label">セーフ</span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
