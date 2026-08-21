@@ -10,7 +10,8 @@
  * 3. 単語を受け取り、判定パイプラインを実行して結果を表示
  * 4. 判定結果は localStorage の履歴に保存
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { InputForm } from './components/InputForm'
 import { ResultView } from './components/ResultView'
 import { HistoryList } from './components/HistoryList'
@@ -54,6 +55,8 @@ export default function App() {
   const [エラー, setエラー] = useState<string | null>(null)
   const [履歴, set履歴] = useState<HistoryEntry[]>([])
   const [履歴破損, set履歴破損] = useState(false)
+  /** 判定結果の表示領域（履歴クリック時のスクロール先） */
+  const 結果表示Ref = useRef<HTMLDivElement>(null)
 
   // 起動時: Gemini Nano の可用性チェックと履歴の読み込み
   useEffect(() => {
@@ -137,6 +140,16 @@ export default function App() {
       セッション?.destroy()
       set判定中ステップ(null)
     }
+  }
+
+  /** 履歴のエントリを選択して過去の判定結果を再表示し、結果の位置までスクロールで戻る */
+  const 履歴の結果を表示する = (エントリ: HistoryEntry) => {
+    // 結果カードが描画されてからスクロール先の位置を測るため、同期的に再レンダリングする
+    flushSync(() => {
+      set判定結果(エントリ)
+    })
+    // スクロールの滑らかさは CSS の scroll-behavior に委ねる（reduced-motion 対応のため）
+    結果表示Ref.current?.scrollIntoView()
   }
 
   /** 履歴をすべて削除する */
@@ -245,7 +258,11 @@ export default function App() {
           </div>
         )}
 
-        {判定結果 !== null && <ResultView result={判定結果} />}
+        {判定結果 !== null && (
+          <div ref={結果表示Ref}>
+            <ResultView result={判定結果} />
+          </div>
+        )}
 
         {/* 途中結果のカードの下に「次のフェーズを生成中」であることを示す */}
         {判定中ステップ !== null && (
@@ -265,7 +282,11 @@ export default function App() {
           </div>
         )}
 
-        <HistoryList entries={履歴} onSelect={set判定結果} onClear={履歴をクリアする} />
+        <HistoryList
+          entries={履歴}
+          onSelect={履歴の結果を表示する}
+          onClear={履歴をクリアする}
+        />
       </main>
 
       <footer className="app-footer">

@@ -48,6 +48,11 @@
   box-sizing: border-box;
 }
 
+/* ページ内スクロール（履歴クリックで結果へ戻る等）を滑らかにする */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   background-color: var(--bg);
@@ -737,6 +742,10 @@ button:focus-visible {
 /* ---------- アクセシビリティ ---------- */
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .result__stamp {
     animation: none;
   }

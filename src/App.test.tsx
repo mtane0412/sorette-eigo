@@ -234,6 +234,32 @@ describe('App', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('モデルの呼び出しに失敗')
   })
 
+  it('履歴のエントリをクリックすると結果を再表示し、結果の位置までスクロールで戻る', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    addHistoryEntry(
+      {
+        input: 'クラフト',
+        verdict: 'english',
+        englishWord: 'craft',
+        note: '',
+        dictionary: { exists: true, phonetic: null, meanings: [] },
+        explanation: '解説',
+        examples: [],
+      },
+      1000,
+    )
+    // jsdom は scrollIntoView を実装していないため、スパイで置き換えて呼び出しを検証する
+    const scrollIntoViewモック = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoViewモック
+    render(<App />)
+
+    await userEvent.click(await screen.findByText('クラフト'))
+
+    // 過去の判定結果が再表示され、その位置までスクロールする
+    expect(screen.getByText('英語です！')).toBeInTheDocument()
+    expect(scrollIntoViewモック).toHaveBeenCalled()
+  })
+
   it('保存済みの履歴を起動時に表示し、クリアできる', async () => {
     vi.mocked(checkAvailability).mockResolvedValue('available')
     addHistoryEntry(
