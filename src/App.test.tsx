@@ -6,7 +6,7 @@
  * 一連の流れを検証します。localStorage は jsdom の実装をそのまま使います。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 import { checkAvailability, createNanoSession, type NanoSession } from './lib/geminiNano'
@@ -258,6 +258,54 @@ describe('App', () => {
     // 過去の判定結果が再表示され、その位置までスクロールする
     expect(screen.getByText('英語です！')).toBeInTheDocument()
     expect(scrollIntoViewモック).toHaveBeenCalled()
+  })
+
+  it('判定処理中は履歴のエントリを選択できず、判定完了後に再び選択できる', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    // 前提: 過去の判定「クラフト」が履歴に保存されている
+    addHistoryEntry(
+      {
+        input: 'クラフト',
+        verdict: 'english',
+        englishWord: 'craft',
+        note: '',
+        dictionary: { exists: true, phonetic: null, meanings: [] },
+        explanation: '解説',
+        examples: [],
+      },
+      1000,
+    )
+    英語判定が成功するように仕込む()
+    // 英語判定の完了を手動で制御し、「判定処理中」の状態を保てるようにする
+    let 判定を返す!: (判定: {
+      isEnglishOrigin: boolean
+      englishWord: string
+      note: string
+    }) => void
+    セッションモック.judgeEnglishOrigin.mockReturnValue(
+      new Promise((resolve) => {
+        判定を返す = resolve
+      }),
+    )
+    render(<App />)
+
+    await userEvent.type(await screen.findByRole('textbox'), 'コントロール')
+    await userEvent.click(screen.getByRole('button', { name: '判定する' }))
+
+    // 判定処理中: 履歴のエントリボタンは無効化され、過去のカードへ移動できない
+    expect(screen.getByText('クラフト').closest('button')).toBeDisabled()
+
+    // 英語判定を完了させると残りのパイプラインも完了し、履歴を再び選択できる
+    await act(async () => {
+      判定を返す({
+        isEnglishOrigin: true,
+        englishWord: 'control',
+        note: '英語の control が語源です。',
+      })
+    })
+    await waitFor(() => {
+      expect(screen.getByText('クラフト').closest('button')).not.toBeDisabled()
+    })
   })
 
   it('保存済みの履歴を起動時に表示し、クリアできる', async () => {

@@ -3,6 +3,7 @@
  *
  * クライアント側（localStorage）に保存された過去の判定を新しい順に表示します。
  * エントリをクリックすると、その判定結果を再表示できます。
+ * 判定処理中（disabled）はエントリを選択できず、過去の結果カードへは移動できません。
  */
 import type { HistoryEntry, Verdict } from '../types'
 
@@ -13,6 +14,8 @@ interface HistoryListProps {
   onSelect: (entry: HistoryEntry) => void
   /** 「履歴をクリア」が押されたときに呼ばれる */
   onClear: () => void
+  /** true のときエントリの選択を無効化する（判定処理中の誤操作防止） */
+  disabled?: boolean
 }
 
 /** 判定種別ごとのバッジ表示 */
@@ -38,7 +41,7 @@ function 日時を整形する(epochMs: number): string {
 /**
  * 判定履歴を一覧表示するコンポーネント。
  */
-export function HistoryList({ entries, onSelect, onClear }: HistoryListProps) {
+export function HistoryList({ entries, onSelect, onClear, disabled = false }: HistoryListProps) {
   return (
     <section className="history">
       <div className="history__header">
@@ -61,6 +64,7 @@ export function HistoryList({ entries, onSelect, onClear }: HistoryListProps) {
                 <button
                   className="history__item"
                   type="button"
+                  disabled={disabled}
                   onClick={() => onSelect(entry)}
                 >
                   <span className={`badge badge--${バッジ.tone}`}>{バッジ.label}</span>
