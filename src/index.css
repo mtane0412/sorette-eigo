@@ -664,10 +664,17 @@ button:focus-visible {
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.history__item:hover {
+.history__item:hover:not(:disabled) {
   background: var(--surface-tint);
   transform: translateY(-2px);
   box-shadow: var(--shadow-soft);
+}
+
+/* 判定処理中の無効化。opacity ではなく不透明な色で表現する（背景のドット模様が透けないように） */
+.history__item:disabled {
+  background: var(--surface-tint);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .history__input {

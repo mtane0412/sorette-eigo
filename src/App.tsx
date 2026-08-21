@@ -286,6 +286,7 @@ export default function App() {
           entries={履歴}
           onSelect={履歴の結果を表示する}
           onClear={履歴をクリアする}
+          disabled={判定中ステップ !== null}
         />
       </main>
 
