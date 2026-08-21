@@ -2,7 +2,7 @@
  * 「それってエイゴ？」のスタイルシート。
  *
  * デザインコンセプト: 昼のバラエティ番組の「判定スタジオ」。
- * - 明るい水色の背景にドット模様を敷き、白い丸角カードを浮かべるポップな画面
+ * - 明るい水色の単色背景に、白い丸角カードを浮かべるポップな画面
  * - 判定結果は丸角の「判定スタンプ」を傾けて叩きつける（アウト=コーラル / セーフ=ミント）
  * - 全体を丸ゴシック（M PLUS Rounded 1c）でそろえ、ボタンは押し込めるキャンディ型
  */
@@ -10,7 +10,6 @@
 :root {
   /* 配色: 晴れた日の判定スタジオ */
   --bg: #eef5fa;
-  --bg-dot: #d8e6f1;
   --surface: #ffffff;
   --surface-tint: #f4f9fd;
   --line: #dfeaf3;
@@ -56,9 +55,6 @@ html {
 body {
   margin: 0;
   background-color: var(--bg);
-  /* 背景のドット模様: スタジオのホリゾント風 */
-  background-image: radial-gradient(var(--bg-dot) 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
   color: var(--text);
   font-family: var(--font-body);
   font-size: 16px;
