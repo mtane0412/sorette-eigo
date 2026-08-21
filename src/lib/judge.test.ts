@@ -14,6 +14,7 @@ const 依存モック = {
   explainWord: vi.fn(),
   makeExampleSentences: vi.fn(),
   onStep: vi.fn(),
+  onProgress: vi.fn(),
 } satisfies JudgeDeps
 
 const 辞書ヒット結果 = {
@@ -146,5 +147,70 @@ describe('judgeWord', () => {
       'explaining',
       'making_examples',
     ])
+  })
+
+  it('英語の場合、辞書チェック後と解説生成後に途中結果を onProgress で通知する', async () => {
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: true,
+      englishWord: 'control',
+      note: '英語の control が語源です。',
+    })
+    依存モック.lookupEnglishWord.mockResolvedValue(辞書ヒット結果)
+    依存モック.explainWord.mockResolvedValue('control は「制御」を意味します。')
+    依存モック.makeExampleSentences.mockResolvedValue(例文リスト)
+
+    await judgeWord('コントロール', 依存モック)
+
+    // 1回目: 辞書チェック完了時点（verdict は確定済み・解説と例文は未生成）
+    expect(依存モック.onProgress).toHaveBeenNthCalledWith(1, {
+      input: 'コントロール',
+      verdict: 'english',
+      englishWord: 'control',
+      note: '英語の control が語源です。',
+      dictionary: 辞書ヒット結果,
+      explanation: null,
+      examples: [],
+    })
+    // 2回目: 解説生成完了時点（例文のみ未生成）
+    expect(依存モック.onProgress).toHaveBeenNthCalledWith(2, {
+      input: 'コントロール',
+      verdict: 'english',
+      englishWord: 'control',
+      note: '英語の control が語源です。',
+      dictionary: 辞書ヒット結果,
+      explanation: 'control は「制御」を意味します。',
+      examples: [],
+    })
+    // 最終結果は戻り値で返すため、通知は上記の2回のみ
+    expect(依存モック.onProgress).toHaveBeenCalledTimes(2)
+
+    // 通知は次フェーズの開始前に行われる（完了後にまとめて通知しない）
+    expect(依存モック.onProgress.mock.invocationCallOrder[0]).toBeLessThan(
+      依存モック.explainWord.mock.invocationCallOrder[0],
+    )
+    expect(依存モック.onProgress.mock.invocationCallOrder[1]).toBeLessThan(
+      依存モック.makeExampleSentences.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('途中で確定するケース（英語でない・辞書に無い）では onProgress を呼ばない', async () => {
+    // 英語でない場合: 由来判定の時点で最終結果が確定するため、途中結果は存在しない
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: false,
+      englishWord: null,
+      note: '日本語固有の擬態語です。',
+    })
+    await judgeWord('もちもち', 依存モック)
+    expect(依存モック.onProgress).not.toHaveBeenCalled()
+
+    // 辞書に無い場合: 辞書チェックの時点で最終結果が確定するため、途中結果は存在しない
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: true,
+      englishWord: 'sarariman',
+      note: '和製英語の可能性があります。',
+    })
+    依存モック.lookupEnglishWord.mockResolvedValue({ exists: false, phonetic: null, meanings: [] })
+    await judgeWord('サラリーマン', 依存モック)
+    expect(依存モック.onProgress).not.toHaveBeenCalled()
   })
 })
