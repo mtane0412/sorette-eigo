@@ -66,16 +66,6 @@ export interface DictionaryLookupResult {
 }
 
 /**
- * 複合語を構成するパーツ（Gemini Nano による分解結果）。
- */
-export interface EnglishOriginPart {
-  /** パーツの日本語表記（例: アルミ） */
-  japanese: string
-  /** 対応する英単語の綴り（例: aluminium）。英語由来でない場合は null */
-  englishWord: string | null
-}
-
-/**
  * Gemini Nano による「英語由来かどうか」の判定結果。
  */
 export interface EnglishOriginJudgement {
@@ -85,8 +75,11 @@ export interface EnglishOriginJudgement {
   isEnglishOrigin: boolean
   /** 元になった英単語の綴り。英語由来でない場合は null */
   englishWord: string | null
-  /** 複合語の構成パーツ。複合語でない場合は空配列 */
-  parts: EnglishOriginPart[]
+  /**
+   * 複合語の構成パーツの日本語表記（例: ['アルミ', 'サッシ']）。複合語でない場合は空配列。
+   * パーツごとの英単語はここでは推定せず、パーツ単体を改めて語源判定にかけて求めます。
+   */
+  parts: string[]
   /** 語源についての短い日本語の補足 */
   note: string
 }

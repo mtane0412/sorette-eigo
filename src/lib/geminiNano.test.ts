@@ -131,10 +131,7 @@ describe('NanoSession.judgeEnglishOrigin', () => {
         inputType: 'compound',
         origin: 'wasei_eigo',
         englishWord: 'aluminum sash',
-        parts: [
-          { japanese: 'アルミ', englishWord: 'aluminium' },
-          { japanese: 'サッシ', englishWord: 'sash' },
-        ],
+        parts: ['アルミ', 'サッシ'],
         note: '',
       }),
     )
@@ -217,16 +214,13 @@ describe('NanoSession.judgeEnglishOrigin', () => {
     expect(結果.englishWord).toBe('control')
   })
 
-  it('複合語はパーツの英単語を正規化して返す', async () => {
+  it('複合語はパーツの日本語表記を正規化して返す（前後空白の除去・空要素の除外）', async () => {
     promptモック.mockResolvedValue(
       JSON.stringify({
         inputType: 'compound',
         origin: 'wasei_eigo',
         englishWord: 'aluminum sash',
-        parts: [
-          { japanese: 'アルミ', englishWord: ' Aluminium ' },
-          { japanese: 'サッシ', englishWord: 'sash' },
-        ],
+        parts: [' アルミ ', 'サッシ', ''],
         note: '英単語を組み合わせた複合語です。',
       }),
     )
@@ -238,82 +232,9 @@ describe('NanoSession.judgeEnglishOrigin', () => {
       inputType: 'compound',
       isEnglishOrigin: true,
       englishWord: 'aluminum sash',
-      parts: [
-        { japanese: 'アルミ', englishWord: 'aluminium' },
-        { japanese: 'サッシ', englishWord: 'sash' },
-      ],
+      parts: ['アルミ', 'サッシ'],
       note: '英単語を組み合わせた複合語です。',
     })
-  })
-
-  it('英語由来でないパーツの englishWord は null に正規化する', async () => {
-    // 「窓サッシ」の「窓」のように英語に対応しないパーツは空文字で返る想定
-    promptモック.mockResolvedValue(
-      JSON.stringify({
-        inputType: 'compound',
-        origin: 'japanese',
-        englishWord: '',
-        parts: [
-          { japanese: '窓', englishWord: '' },
-          { japanese: 'サッシ', englishWord: 'sash' },
-        ],
-        note: '日本語とカタカナ語の複合語です。',
-      }),
-    )
-    const セッション = await createNanoSession()
-
-    const 結果 = await セッション.judgeEnglishOrigin('窓サッシ')
-
-    expect(結果.parts).toEqual([
-      { japanese: '窓', englishWord: null },
-      { japanese: 'サッシ', englishWord: 'sash' },
-    ])
-  })
-
-  it('漢字・ひらがなのみのパーツに返された英単語は対訳とみなして null にする', async () => {
-    // 実機で「窓サッシ」の「窓」に語源ではなく対訳の window が返ることを確認した。
-    // 英語由来の外来語は原則カタカナ（または英字）表記のため、
-    // 漢字・ひらがなのみのパーツの英単語は採用しない
-    promptモック.mockResolvedValue(
-      JSON.stringify({
-        inputType: 'compound',
-        origin: 'japanese',
-        englishWord: '',
-        parts: [
-          { japanese: '窓', englishWord: 'window' },
-          { japanese: 'サッシ', englishWord: 'sash' },
-        ],
-        note: '日本語とカタカナ語の複合語です。',
-      }),
-    )
-    const セッション = await createNanoSession()
-
-    const 結果 = await セッション.judgeEnglishOrigin('窓サッシ')
-
-    expect(結果.parts).toEqual([
-      { japanese: '窓', englishWord: null },
-      { japanese: 'サッシ', englishWord: 'sash' },
-    ])
-  })
-
-  it('プロンプトにパーツへ対訳を入れることを禁止する指示を含める', async () => {
-    promptモック.mockResolvedValue(
-      JSON.stringify({
-        inputType: 'compound',
-        origin: 'japanese',
-        englishWord: '',
-        parts: [
-          { japanese: '窓', englishWord: '' },
-          { japanese: 'サッシ', englishWord: 'sash' },
-        ],
-        note: '',
-      }),
-    )
-    const セッション = await createNanoSession()
-
-    await セッション.judgeEnglishOrigin('窓サッシ')
-
-    expect(promptモック.mock.calls[0][0]).toContain('対訳')
   })
 
   it('single_word の場合はモデルが parts を返しても空配列に正規化する', async () => {
@@ -322,7 +243,7 @@ describe('NanoSession.judgeEnglishOrigin', () => {
         inputType: 'single_word',
         origin: 'english',
         englishWord: 'control',
-        parts: [{ japanese: 'コントロール', englishWord: 'control' }],
+        parts: ['コントロール'],
         note: '',
       }),
     )

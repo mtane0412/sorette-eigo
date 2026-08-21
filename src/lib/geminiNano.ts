@@ -102,17 +102,9 @@ const 英語由来判定スキーマ = {
     englishWord: { type: 'string' },
     parts: {
       type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          japanese: { type: 'string' },
-          englishWord: { type: 'string' },
-        },
-        required: ['japanese', 'englishWord'],
-        additionalProperties: false,
-      },
+      items: { type: 'string' },
       // モデルの無限出力を防ぐための上限。判定パイプライン側では
-      // さらに judge.ts の MAX_COMPOUND_PARTS 個までに絞って辞書照会する
+      // さらに judge.ts の MAX_COMPOUND_PARTS 個までに絞って判定する
       maxItems: 6,
     },
     note: { type: 'string' },
@@ -165,7 +157,7 @@ interface 語源判定出力 {
   inputType: 入力タイプ
   origin: 語源
   englishWord: string
-  parts: { japanese: string; englishWord: string }[]
+  parts: string[]
   note: string
 }
 
@@ -182,13 +174,7 @@ function 語源判定として検証する(値: unknown): 語源判定出力 {
     (語源分類 as readonly string[]).includes(レコード.origin as string) &&
     typeof レコード.englishWord === 'string' &&
     Array.isArray(レコード.parts) &&
-    レコード.parts.every(
-      (パーツ) =>
-        typeof パーツ === 'object' &&
-        パーツ !== null &&
-        typeof (パーツ as Record<string, unknown>).japanese === 'string' &&
-        typeof (パーツ as Record<string, unknown>).englishWord === 'string',
-    ) &&
+    レコード.parts.every((パーツ) => typeof パーツ === 'string') &&
     typeof レコード.note === 'string'
   ) {
     return 値 as unknown as 語源判定出力
@@ -205,20 +191,6 @@ function 語源判定として検証する(値: unknown): 語源判定出力 {
 function 英単語を正規化する(englishWord: string): string | null {
   const 正規化済み = englishWord.trim().toLowerCase()
   return 正規化済み === '' ? null : 正規化済み
-}
-
-/**
- * パーツの日本語表記が英語由来（外来語）でありうるかを判定します。
- *
- * 英語からの外来語は原則カタカナ（IT のような英字表記を含む）で書かれるため、
- * 漢字・ひらがなのみのパーツ（窓・手紙など）に返された英単語は
- * 語源ではなく対訳（翻訳）とみなして採用しません
- * （実機で「窓サッシ」の「窓」に window が返ることを確認）。
- * 倶楽部（club）のような当て字は拾えなくなりますが、稀なケースとして許容します。
- */
-function 英語由来でありうる表記か(japanese: string): boolean {
-  // カタカナ（全角・半角）または英字を 1 文字でも含むかどうか
-  return /[゠-ヿｦ-ﾟA-Za-z]/.test(japanese)
 }
 
 /**
@@ -333,7 +305,8 @@ export class NanoSession {
    * 日本語の単語が英語由来（カタカナ英語・和製英語含む）かどうかを判定します。
    *
    * あわせて入力の種類（単語 / 複合語 / 文章）を分類し、
-   * 複合語の場合は構成パーツとパーツごとの対応英単語も返します。
+   * 複合語の場合は構成パーツの日本語表記も返します。
+   * パーツごとの英単語はここでは推定しません（パーツ単体を改めてこのメソッドにかけます）。
    *
    * @param word - 判定対象の日本語の単語
    * @throws {GeminiNanoError} モデルの出力が不正な場合
@@ -359,10 +332,7 @@ export class NanoSession {
       'english / wasei_eigo の場合は元の英単語の綴りを englishWord に入れ、それ以外は空文字にしてください。',
       'inputType が compound の場合、englishWord には複合語全体に対応する英語表現を入れてください（例: アルミサッシ → aluminum sash）。一部のパーツだけの英単語を入れてはいけません。',
       '',
-      'inputType が compound の場合は、parts に構成パーツを先頭から順に入れてください。',
-      '各パーツの japanese に日本語表記を、englishWord に対応する英単語の綴り（英語由来でないパーツは空文字）を入れてください。',
-      'パーツの englishWord には語源として対応する英単語だけを入れ、意味の対訳（翻訳）を入れてはいけません。',
-      '例: 窓サッシ → 窓 は日本語固有なので空文字、サッシ は英語 sash 由来なので sash。パン はポルトガル語由来なので空文字。',
+      'inputType が compound の場合は、parts に構成パーツの日本語表記を先頭から順に入れてください（例: アルミサッシ → ["アルミ", "サッシ"]）。',
       'compound でない場合、parts は空配列にしてください。',
       '',
       'note には語源の短い補足を日本語で書いてください。',
@@ -379,15 +349,9 @@ export class NanoSession {
     const パーツ一覧 =
       判定.inputType === 'compound'
         ? 判定.parts
-            // モデルが日本語表記の無い空パーツを返した場合は判定できないため除外する
-            .filter((パーツ) => パーツ.japanese.trim() !== '')
-            .map((パーツ) => ({
-              japanese: パーツ.japanese.trim(),
-              // 漢字・ひらがなのみのパーツの英単語は対訳とみなして採用しない
-              englishWord: 英語由来でありうる表記か(パーツ.japanese)
-                ? 英単語を正規化する(パーツ.englishWord)
-                : null,
-            }))
+            .map((パーツ) => パーツ.trim())
+            // モデルが空のパーツを返した場合は判定できないため除外する
+            .filter((パーツ) => パーツ !== '')
         : []
     return {
       inputType: 判定.inputType,
