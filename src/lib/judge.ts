@@ -94,7 +94,7 @@ export async function judgeWord(input: string, deps: JudgeDeps): Promise<JudgeRe
     形態素.some((トークン) => 文章を構成する品詞.includes(トークン.pos))
   ) {
     throw new Error(
-      '文章の判定には対応していません。単語をひとつ入力してください（例: コントロール）',
+      '文章の判定には対応していません。単語をひとつ入力してください（例: フィッシャーマン）',
     )
   }
 

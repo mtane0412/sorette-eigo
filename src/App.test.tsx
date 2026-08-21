@@ -77,6 +77,32 @@ function 英語判定が成功するように仕込む() {
 }
 
 describe('App', () => {
+  it('サービス名「それってエイゴ？」を見出しに表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /それってエイゴ？/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('GitHub リポジトリへのリンクを表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    render(<App />)
+
+    const リンク = await screen.findByRole('link', { name: 'GitHub リポジトリ' })
+    expect(リンク).toHaveAttribute('href', 'https://github.com/mtane0412/sorette-eigo')
+  })
+
+  it('小型モデルの判定結果を鵜呑みにしないよう促す注意書きを表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    render(<App />)
+
+    expect(
+      await screen.findByText(/小型のAIモデルによる判定のため、間違えることがあります/),
+    ).toBeInTheDocument()
+  })
+
   it('モデルが利用可能なら入力フォームを表示する', async () => {
     vi.mocked(checkAvailability).mockResolvedValue('available')
     render(<App />)
