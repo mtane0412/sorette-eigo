@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event'
 import App from './App'
 import { checkAvailability, createNanoSession, type NanoSession } from './lib/geminiNano'
 import { lookupEnglishWord } from './lib/dictionary'
+import { analyzeMorphemes } from './lib/morphology'
 import { addHistoryEntry } from './lib/history'
 import type { ExampleSentence } from './types'
 
@@ -31,6 +32,14 @@ vi.mock('./lib/dictionary', async (importOriginal) => {
   }
 })
 
+vi.mock('./lib/morphology', async (importOriginal) => {
+  const 元モジュール = await importOriginal<typeof import('./lib/morphology')>()
+  return {
+    ...元モジュール,
+    analyzeMorphemes: vi.fn(),
+  }
+})
+
 /** モックセッション（NanoSession の公開メソッドのみを模倣） */
 const セッションモック = {
   judgeEnglishOrigin: vi.fn(),
@@ -43,6 +52,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
   vi.mocked(createNanoSession).mockResolvedValue(セッションモック as unknown as NanoSession)
+  // 判定テストの入力「コントロール」は単一の形態素として扱う
+  vi.mocked(analyzeMorphemes).mockResolvedValue([{ surface: 'コントロール', pos: '名詞' }])
 })
 
 /** 「コントロール → control（英語）」の判定が成功するようモックを仕込むヘルパー */

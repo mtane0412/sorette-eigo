@@ -10,10 +10,11 @@
  * 判定結果の種別。
  *
  * - `english`: 英語由来で、辞書にも実在する英単語が確認できた
+ * - `english_compound`: 全体はひとつの英単語ではないが、分解したパーツに辞書に実在する英単語が含まれる（例: アルミサッシ）
  * - `not_english`: 英語由来ではない（日本語固有・他言語由来など）
  * - `not_in_dictionary`: 英語由来と推定されたが、対応する英単語が辞書に存在しない（和製英語の可能性）
  */
-export type Verdict = 'english' | 'not_english' | 'not_in_dictionary'
+export type Verdict = 'english' | 'english_compound' | 'not_english' | 'not_in_dictionary'
 
 /**
  * Gemini Nano が生成する英語の例文（日本語訳付き）。
@@ -57,6 +58,9 @@ export interface DictionaryLookupResult {
 
 /**
  * Gemini Nano による「英語由来かどうか」の判定結果。
+ *
+ * 入力の分解（複合語・文章の検出）は形態素解析（morphology.ts）が担うため、
+ * この判定は単一の単語（またはパーツ）の語源分類に専念します。
  */
 export interface EnglishOriginJudgement {
   /** 英語由来（和製英語含む）と判定されたかどうか */
@@ -65,6 +69,18 @@ export interface EnglishOriginJudgement {
   englishWord: string | null
   /** 語源についての短い日本語の補足 */
   note: string
+}
+
+/**
+ * 複合語のパーツごとの判定結果（辞書照会済み）。
+ */
+export interface CompoundPartResult {
+  /** パーツの日本語表記（例: アルミ） */
+  japanese: string
+  /** 対応する英単語の綴り。英語由来でない場合は null */
+  englishWord: string | null
+  /** 辞書の照会結果。英語由来でない（照会しなかった）場合は null */
+  dictionary: DictionaryLookupResult | null
 }
 
 /**
@@ -85,6 +101,11 @@ export interface JudgeResult {
   explanation: string | null
   /** Gemini Nano による例文。生成しなかった場合は空配列 */
   examples: ExampleSentence[]
+  /**
+   * 複合語のパーツごとの判定結果。verdict が `english_compound` の場合のみ設定します。
+   * この機能の導入前に保存された履歴データには存在しないため optional にしています。
+   */
+  parts?: CompoundPartResult[]
 }
 
 /**

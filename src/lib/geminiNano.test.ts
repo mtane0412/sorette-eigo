@@ -119,6 +119,40 @@ describe('NanoSession.judgeEnglishOrigin', () => {
     expect(promptモック.mock.calls[0][0]).toContain('コントロール')
   })
 
+  it('プロンプトに省略された外来語も english とする基準を含める', async () => {
+    // 実機で、複合語のパーツ「アルミ」（aluminium の省略形）が
+    // 英語由来と認識されないことを確認したため、省略形の扱いを明記する
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        origin: 'english',
+        englishWord: 'aluminium',
+        note: '英語の aluminium の省略形です。',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    await セッション.judgeEnglishOrigin('アルミ')
+
+    expect(promptモック.mock.calls[0][0]).toContain('省略された外来語')
+  })
+
+  it('語源分類のプロンプトに「直接の借用元が英語なら english」の基準を含める', async () => {
+    // サッシ（英語 sash 経由。sash 自体はフランス語 châssis 起源）のような単語が
+    // 「さらに遡れば他言語」という理由で other_language に誤分類されるのを防ぐための基準
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        origin: 'english',
+        englishWord: 'sash',
+        note: '英語の sash が語源です。',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    await セッション.judgeEnglishOrigin('サッシ')
+
+    expect(promptモック.mock.calls[0][0]).toContain('直接の借用元が英語')
+  })
+
   it('英語由来でない場合は englishWord を null に正規化する', async () => {
     promptモック.mockResolvedValue(
       JSON.stringify({ origin: 'japanese', englishWord: '', note: '日本語固有の言葉です。' }),

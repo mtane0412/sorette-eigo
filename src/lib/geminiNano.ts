@@ -139,28 +139,40 @@ function モデル出力をJSONパースする(出力: string): unknown {
   }
 }
 
+/** 語源判定の構造化出力（検証済み）の形 */
+interface 語源判定出力 {
+  origin: 語源
+  englishWord: string
+  note: string
+}
+
 /**
  * 語源判定の出力が期待した形かをランタイムで検証します。
  *
  * @throws {GeminiNanoError} フィールドが欠けている・型が違う・分類が未知の場合
  */
-function 語源判定として検証する(
-  値: unknown,
-): { origin: 語源; englishWord: string; note: string } {
+function 語源判定として検証する(値: unknown): 語源判定出力 {
+  const レコード = typeof 値 === 'object' && 値 !== null ? (値 as Record<string, unknown>) : null
   if (
-    typeof 値 === 'object' &&
-    値 !== null &&
-    (語源分類 as readonly string[]).includes(
-      (値 as Record<string, unknown>).origin as string,
-    ) &&
-    typeof (値 as Record<string, unknown>).englishWord === 'string' &&
-    typeof (値 as Record<string, unknown>).note === 'string'
+    レコード !== null &&
+    (語源分類 as readonly string[]).includes(レコード.origin as string) &&
+    typeof レコード.englishWord === 'string' &&
+    typeof レコード.note === 'string'
   ) {
-    return 値 as { origin: 語源; englishWord: string; note: string }
+    return 値 as unknown as 語源判定出力
   }
   throw new GeminiNanoError(
     `Gemini Nano の語源判定が期待した形式ではありませんでした: ${JSON.stringify(値).slice(0, 100)}`,
   )
+}
+
+/**
+ * モデルが返した英単語の綴りを小文字・前後空白なしに正規化します。
+ * 空文字（英語由来でない）は null に変換します。
+ */
+function 英単語を正規化する(englishWord: string): string | null {
+  const 正規化済み = englishWord.trim().toLowerCase()
+  return 正規化済み === '' ? null : 正規化済み
 }
 
 /**
@@ -274,6 +286,9 @@ export class NanoSession {
   /**
    * 日本語の単語が英語由来（カタカナ英語・和製英語含む）かどうかを判定します。
    *
+   * 入力の分解（複合語・文章の検出）は形態素解析（morphology.ts）が担うため、
+   * この判定は単一の単語（複合語のパーツ単体を含む）の語源分類に専念します。
+   *
    * @param word - 判定対象の日本語の単語
    * @throws {GeminiNanoError} モデルの出力が不正な場合
    */
@@ -287,6 +302,10 @@ export class NanoSession {
       '- japanese: 日本語固有の言葉。擬音語・擬態語（もちもち・ふわふわ等）や、日本語から英語へ輸出された言葉（寿司・もち・カラオケ等）もこれ',
       '- other_language: 英語以外の外国語由来（例: パン、カルテ）',
       '',
+      '注意: 日本語への直接の借用元が英語なら english としてください。',
+      'その英単語のさらなる語源がフランス語・ラテン語などでも english です（例: サッシ → 英語 sash）。',
+      'アルミ（aluminium）やスマホ（smartphone）のように省略された外来語も english とし、englishWord には省略前の完全な英単語を入れてください。',
+      '',
       'english / wasei_eigo の場合は元の英単語の綴りを englishWord に入れ、それ以外は空文字にしてください。',
       'note には語源の短い補足を日本語で書いてください。',
     ].join('\n')
@@ -298,10 +317,9 @@ export class NanoSession {
 
     // 英語の外来語・和製英語のどちらも「英語由来」として扱う
     const 英語由来 = 判定.origin === 'english' || 判定.origin === 'wasei_eigo'
-    const 正規化済み英単語 = 判定.englishWord.trim().toLowerCase()
     return {
       isEnglishOrigin: 英語由来,
-      englishWord: 英語由来 && 正規化済み英単語 !== '' ? 正規化済み英単語 : null,
+      englishWord: 英語由来 ? 英単語を正規化する(判定.englishWord) : null,
       note: 判定.note,
     }
   }

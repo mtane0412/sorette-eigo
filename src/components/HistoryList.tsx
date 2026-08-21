@@ -18,6 +18,7 @@ interface HistoryListProps {
 /** 判定種別ごとのバッジ表示 */
 const バッジ表示: Record<Verdict, { label: string; tone: 'out' | 'safe' | 'unknown' }> = {
   english: { label: 'アウト', tone: 'out' },
+  english_compound: { label: '英語入り', tone: 'out' },
   not_english: { label: 'セーフ', tone: 'safe' },
   not_in_dictionary: { label: '辞書なし', tone: 'unknown' },
 }

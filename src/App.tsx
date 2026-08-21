@@ -16,6 +16,7 @@ import { ResultView } from './components/ResultView'
 import { HistoryList } from './components/HistoryList'
 import { checkAvailability, createNanoSession } from './lib/geminiNano'
 import { lookupEnglishWord } from './lib/dictionary'
+import { analyzeMorphemes } from './lib/morphology'
 import { judgeWord, type JudgeStep } from './lib/judge'
 import {
   MAX_HISTORY_ENTRIES,
@@ -35,8 +36,10 @@ type ModelState =
 
 /** 判定パイプラインの各ステップに対応する表示ラベル */
 const ステップ表示: Record<JudgeStep, string> = {
+  analyzing_morphemes: '単語を分解中…',
   judging_origin: '英単語を推定中…',
   checking_dictionary: '辞書を確認中…',
+  checking_parts: 'パーツごとに判定中…',
   explaining: '解説を生成中…',
   making_examples: '例文を作成中…',
 }
@@ -114,6 +117,7 @@ export default function App() {
       // 判定ごとに新しいセッションを作り、前回の文脈が結果に影響しないようにする
       セッション = await createNanoSession()
       const 結果 = await judgeWord(単語, {
+        analyzeMorphemes,
         judgeEnglishOrigin: (対象) => セッション!.judgeEnglishOrigin(対象),
         lookupEnglishWord,
         explainWord: (英単語, 元入力) => セッション!.explainWord(英単語, 元入力),
@@ -249,7 +253,15 @@ export default function App() {
       <footer className="app-footer">
         <p>
           判定は Chrome 内蔵の Gemini Nano がブラウザの中だけで行います。
-          入力した単語が外部に送られるのは、英単語の実在チェック（
+          入力した単語が外部に送られるのは、単語の分解（
+          <a
+            href="https://developer.yahoo.co.jp/webapi/jlp/ma/v2/parse.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Yahoo!テキスト解析API
+          </a>
+          ）と英単語の実在チェック（
           <a href="https://dictionaryapi.dev/" target="_blank" rel="noreferrer">
             Free Dictionary API
           </a>
