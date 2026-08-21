@@ -77,6 +77,38 @@ describe('形態素解析プロキシ', () => {
     expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173')
   })
 
+  it('ローカル開発のオリジンはポート番号によらず許可する', async () => {
+    // vite はポートが使用中だと 5174 などへ自動的にずれるため、
+    // localhost はポート固定ではなくパターンで許可する
+    const レスポンス = await worker.fetch(
+      許可オリジンからのリクエスト('http://localhost:5174'),
+      テスト環境,
+    )
+
+    expect(レスポンス.status).toBe(200)
+    expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5174')
+  })
+
+  it('127.0.0.1 でのアクセスも許可する', async () => {
+    const レスポンス = await worker.fetch(
+      許可オリジンからのリクエスト('http://127.0.0.1:5173'),
+      テスト環境,
+    )
+
+    expect(レスポンス.status).toBe(200)
+    expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:5173')
+  })
+
+  it('localhost を装った別ドメインのオリジンは拒否する', async () => {
+    const レスポンス = await worker.fetch(
+      許可オリジンからのリクエスト('http://localhost.evil.example.com'),
+      テスト環境,
+    )
+
+    expect(レスポンス.status).toBe(403)
+    expect(fetchモック).not.toHaveBeenCalled()
+  })
+
   it('許可していないオリジンからのリクエストは 403 で拒否し、中継しない', async () => {
     const レスポンス = await worker.fetch(
       許可オリジンからのリクエスト('https://evil.example.com'),

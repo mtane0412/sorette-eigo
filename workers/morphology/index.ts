@@ -20,14 +20,23 @@
 /** Yahoo!テキスト解析API（JSON-RPC）のエンドポイント */
 const YAHOO_JLP_ENDPOINT = 'https://jlp.yahooapis.jp/jsonrpc'
 
-/** リクエストを許可するオリジン（アプリの配信元） */
+/** リクエストを許可するオリジン（アプリの配信元・本番） */
 const ALLOWED_ORIGINS = [
   // 本番（GitHub Pages）
   'https://mtane0412.github.io',
-  // ローカル開発（vite dev / vite preview）
-  'http://localhost:5173',
-  'http://localhost:4173',
 ]
+
+/**
+ * ローカル開発のオリジンにマッチするパターン。
+ * vite はポートが使用中だと 5174 などへ自動的にずれるため、
+ * localhost / 127.0.0.1 はポート番号によらず許可します。
+ */
+const ローカル開発オリジン = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
+
+/** オリジンがこのプロキシの利用を許可されているかを返します。 */
+function 許可されたオリジンか(オリジン: string): boolean {
+  return ALLOWED_ORIGINS.includes(オリジン) || ローカル開発オリジン.test(オリジン)
+}
 
 /** Worker が参照する環境変数（wrangler secret で設定する） */
 export interface Env {
@@ -38,7 +47,7 @@ export interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const オリジン = request.headers.get('Origin')
-    const 許可オリジン = オリジン !== null && ALLOWED_ORIGINS.includes(オリジン) ? オリジン : null
+    const 許可オリジン = オリジン !== null && 許可されたオリジンか(オリジン) ? オリジン : null
 
     // アプリは text/plain のシンプルリクエストで送るため通常 preflight は発生しないが、
     // 将来ヘッダーを増やしても動くよう OPTIONS には正しく応答しておく
