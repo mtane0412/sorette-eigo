@@ -328,6 +328,7 @@ export class NanoSession {
       '',
       '注意: 日本語への直接の借用元が英語なら english としてください。',
       'その英単語のさらなる語源がフランス語・ラテン語などでも english です（例: サッシ → 英語 sash）。',
+      'アルミ（aluminium）やスマホ（smartphone）のように省略された外来語も english とし、englishWord には省略前の完全な英単語を入れてください。',
       '',
       'english / wasei_eigo の場合は元の英単語の綴りを englishWord に入れ、それ以外は空文字にしてください。',
       'inputType が compound の場合、englishWord には複合語全体に対応する英語表現を入れてください（例: アルミサッシ → aluminum sash）。一部のパーツだけの英単語を入れてはいけません。',
