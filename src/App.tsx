@@ -37,6 +37,7 @@ type ModelState =
 const ステップ表示: Record<JudgeStep, string> = {
   judging_origin: '英単語を推定中…',
   checking_dictionary: '辞書を確認中…',
+  checking_parts: 'パーツごとに辞書を確認中…',
   explaining: '解説を生成中…',
   making_examples: '例文を作成中…',
 }

@@ -17,6 +17,7 @@ const 判定表示: Record<
   { eyebrow: string; title: string; tone: 'out' | 'safe' | 'unknown' }
 > = {
   english: { eyebrow: 'OUT!', title: '英語です！', tone: 'out' },
+  english_compound: { eyebrow: 'OUT!', title: '英単語の組み合わせです！', tone: 'out' },
   not_english: { eyebrow: 'SAFE', title: '英語ではなさそう', tone: 'safe' },
   not_in_dictionary: {
     eyebrow: '???',
@@ -64,6 +65,37 @@ export function ResultView({ result }: ResultViewProps) {
           英語由来と推定されましたが、英語の辞書には載っていない綴りでした。
           和製英語や省略形の可能性があります。
         </p>
+      )}
+
+      {result.verdict === 'english_compound' && (
+        <p className="result__hint">
+          全体でひとつの英単語ではありませんが、分解すると辞書に実在する英単語が含まれています。
+        </p>
+      )}
+
+      {result.parts !== undefined && result.parts.length > 0 && (
+        <div className="result__section">
+          <h3 className="result__heading">分解すると</h3>
+          <ul className="result__parts">
+            {result.parts.map((パーツ) => (
+              <li key={パーツ.japanese} className="result__part">
+                <span className="result__part-ja">{パーツ.japanese}</span>
+                {パーツ.englishWord !== null ? (
+                  <>
+                    <span className="result__part-en">{パーツ.englishWord}</span>
+                    <span
+                      className={`badge badge--${パーツ.dictionary?.exists === true ? 'out' : 'unknown'}`}
+                    >
+                      {パーツ.dictionary?.exists === true ? '辞書に実在' : '辞書に無し'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="badge badge--safe">英語由来ではない</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {result.explanation !== null && (

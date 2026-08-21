@@ -32,6 +32,29 @@ const 履歴サンプル: HistoryEntry[] = [
     explanation: null,
     examples: [],
   },
+  {
+    id: 'id-3',
+    judgedAt: new Date('2026-08-21T12:00:00').getTime(),
+    input: 'アルミサッシ',
+    verdict: 'english_compound',
+    englishWord: 'aluminum sash',
+    note: '',
+    dictionary: null,
+    explanation: null,
+    examples: [],
+    parts: [
+      {
+        japanese: 'アルミ',
+        englishWord: 'aluminium',
+        dictionary: { exists: true, phonetic: null, meanings: [] },
+      },
+      {
+        japanese: 'サッシ',
+        englishWord: 'sash',
+        dictionary: { exists: true, phonetic: null, meanings: [] },
+      },
+    ],
+  },
 ]
 
 describe('HistoryList', () => {
@@ -46,6 +69,13 @@ describe('HistoryList', () => {
     expect(screen.getByText('コントロール')).toBeInTheDocument()
     expect(screen.getByText('control')).toBeInTheDocument()
     expect(screen.getByText('もちもち')).toBeInTheDocument()
+  })
+
+  it('英単語の組み合わせ（english_compound）のエントリにはバッジを表示する', () => {
+    render(<HistoryList entries={履歴サンプル} onSelect={vi.fn()} onClear={vi.fn()} />)
+
+    expect(screen.getByText('アルミサッシ')).toBeInTheDocument()
+    expect(screen.getByText('英語入り')).toBeInTheDocument()
   })
 
   it('エントリをクリックすると onSelect にそのエントリを渡す', async () => {

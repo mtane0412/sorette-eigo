@@ -101,8 +101,10 @@ describe('NanoSession.judgeEnglishOrigin', () => {
   it('英語由来の単語は isEnglishOrigin: true と英単語を返す', async () => {
     promptモック.mockResolvedValue(
       JSON.stringify({
+        inputType: 'single_word',
         origin: 'english',
         englishWord: 'control',
+        parts: [],
         note: '英語の control が語源のカタカナ語です。',
       }),
     )
@@ -111,17 +113,44 @@ describe('NanoSession.judgeEnglishOrigin', () => {
     const 結果 = await セッション.judgeEnglishOrigin('コントロール')
 
     expect(結果).toEqual({
+      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: 'control',
+      parts: [],
       note: '英語の control が語源のカタカナ語です。',
     })
     // プロンプトに対象の単語が含まれていること
     expect(promptモック.mock.calls[0][0]).toContain('コントロール')
   })
 
+  it('語源分類のプロンプトに「直接の借用元が英語なら english」の基準を含める', async () => {
+    // サッシ（英語 sash 経由。sash 自体はフランス語 châssis 起源）のような単語が
+    // 「さらに遡れば他言語」という理由で other_language に誤分類されるのを防ぐための基準
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        inputType: 'single_word',
+        origin: 'english',
+        englishWord: 'sash',
+        parts: [],
+        note: '英語の sash が語源です。',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    await セッション.judgeEnglishOrigin('サッシ')
+
+    expect(promptモック.mock.calls[0][0]).toContain('直接の借用元が英語')
+  })
+
   it('英語由来でない場合は englishWord を null に正規化する', async () => {
     promptモック.mockResolvedValue(
-      JSON.stringify({ origin: 'japanese', englishWord: '', note: '日本語固有の言葉です。' }),
+      JSON.stringify({
+        inputType: 'single_word',
+        origin: 'japanese',
+        englishWord: '',
+        parts: [],
+        note: '日本語固有の言葉です。',
+      }),
     )
     const セッション = await createNanoSession()
 
@@ -134,8 +163,10 @@ describe('NanoSession.judgeEnglishOrigin', () => {
   it('和製英語（wasei_eigo）も英語由来として扱う', async () => {
     promptモック.mockResolvedValue(
       JSON.stringify({
+        inputType: 'single_word',
         origin: 'wasei_eigo',
         englishWord: 'salaryman',
+        parts: [],
         note: '英単語を組み合わせた和製英語です。',
       }),
     )
@@ -149,13 +180,115 @@ describe('NanoSession.judgeEnglishOrigin', () => {
 
   it('英単語は小文字・前後空白なしに正規化する', async () => {
     promptモック.mockResolvedValue(
-      JSON.stringify({ origin: 'english', englishWord: ' Control ', note: '' }),
+      JSON.stringify({
+        inputType: 'single_word',
+        origin: 'english',
+        englishWord: ' Control ',
+        parts: [],
+        note: '',
+      }),
     )
     const セッション = await createNanoSession()
 
     const 結果 = await セッション.judgeEnglishOrigin('コントロール')
 
     expect(結果.englishWord).toBe('control')
+  })
+
+  it('複合語はパーツの英単語を正規化して返す', async () => {
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        inputType: 'compound',
+        origin: 'wasei_eigo',
+        englishWord: 'aluminum sash',
+        parts: [
+          { japanese: 'アルミ', englishWord: ' Aluminium ' },
+          { japanese: 'サッシ', englishWord: 'sash' },
+        ],
+        note: '英単語を組み合わせた複合語です。',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    const 結果 = await セッション.judgeEnglishOrigin('アルミサッシ')
+
+    expect(結果).toEqual({
+      inputType: 'compound',
+      isEnglishOrigin: true,
+      englishWord: 'aluminum sash',
+      parts: [
+        { japanese: 'アルミ', englishWord: 'aluminium' },
+        { japanese: 'サッシ', englishWord: 'sash' },
+      ],
+      note: '英単語を組み合わせた複合語です。',
+    })
+  })
+
+  it('英語由来でないパーツの englishWord は null に正規化する', async () => {
+    // 「窓サッシ」の「窓」のように英語に対応しないパーツは空文字で返る想定
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        inputType: 'compound',
+        origin: 'japanese',
+        englishWord: '',
+        parts: [
+          { japanese: '窓', englishWord: '' },
+          { japanese: 'サッシ', englishWord: 'sash' },
+        ],
+        note: '日本語とカタカナ語の複合語です。',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    const 結果 = await セッション.judgeEnglishOrigin('窓サッシ')
+
+    expect(結果.parts).toEqual([
+      { japanese: '窓', englishWord: null },
+      { japanese: 'サッシ', englishWord: 'sash' },
+    ])
+  })
+
+  it('single_word の場合はモデルが parts を返しても空配列に正規化する', async () => {
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        inputType: 'single_word',
+        origin: 'english',
+        englishWord: 'control',
+        parts: [{ japanese: 'コントロール', englishWord: 'control' }],
+        note: '',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    const 結果 = await セッション.judgeEnglishOrigin('コントロール')
+
+    expect(結果.parts).toEqual([])
+  })
+
+  it('文章の入力は inputType: sentence として返す', async () => {
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        inputType: 'sentence',
+        origin: 'japanese',
+        englishWord: '',
+        parts: [],
+        note: '文章です。',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    const 結果 = await セッション.judgeEnglishOrigin('これはペンです')
+
+    expect(結果.inputType).toBe('sentence')
+  })
+
+  it('出力に inputType や parts が無い旧形式なら GeminiNanoError を投げる（fail-fast）', async () => {
+    promptモック.mockResolvedValue(
+      JSON.stringify({ origin: 'english', englishWord: 'control', note: '' }),
+    )
+    const セッション = await createNanoSession()
+
+    await expect(セッション.judgeEnglishOrigin('コントロール')).rejects.toThrow(GeminiNanoError)
   })
 
   it('モデルが不正な JSON を返したら GeminiNanoError を投げる（fail-fast）', async () => {
@@ -238,7 +371,13 @@ describe('NanoSession のタイムアウト', () => {
 
   it('prompt にはタイムアウト用の AbortSignal を渡す（推論キューを解放する）', async () => {
     promptモック.mockResolvedValue(
-      JSON.stringify({ origin: 'english', englishWord: 'control', note: '' }),
+      JSON.stringify({
+        inputType: 'single_word',
+        origin: 'english',
+        englishWord: 'control',
+        parts: [],
+        note: '',
+      }),
     )
     const セッション = await createNanoSession()
 
@@ -256,7 +395,13 @@ describe('NanoSession の自己修復（セッション再作成リトライ）'
 
   it('prompt が失敗したら新しいセッションで 1 回だけ再試行する', async () => {
     const 二代目promptモック = vi.fn().mockResolvedValue(
-      JSON.stringify({ origin: 'english', englishWord: 'control', note: '' }),
+      JSON.stringify({
+        inputType: 'single_word',
+        origin: 'english',
+        englishWord: 'control',
+        parts: [],
+        note: '',
+      }),
     )
     const 二代目destroyモック = vi.fn()
     promptモック.mockRejectedValue(new DOMException('kErrorUnknown', 'UnknownError'))

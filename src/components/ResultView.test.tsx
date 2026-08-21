@@ -84,6 +84,71 @@ describe('ResultView', () => {
     expect(screen.queryByText('例文')).not.toBeInTheDocument()
   })
 
+  it('英単語の組み合わせの場合はパーツごとの判定を表示する', () => {
+    const 結果: JudgeResult = {
+      input: 'アルミサッシ',
+      verdict: 'english_compound',
+      englishWord: 'aluminum sash',
+      note: '英単語を組み合わせた複合語です。',
+      dictionary: { exists: false, phonetic: null, meanings: [] },
+      explanation: null,
+      examples: [],
+      parts: [
+        {
+          japanese: 'アルミ',
+          englishWord: 'aluminium',
+          dictionary: { exists: true, phonetic: null, meanings: [] },
+        },
+        {
+          japanese: 'サッシ',
+          englishWord: 'sash',
+          dictionary: { exists: true, phonetic: null, meanings: [] },
+        },
+      ],
+    }
+    render(<ResultView result={結果} />)
+
+    expect(screen.getByText('英単語の組み合わせです！')).toBeInTheDocument()
+    expect(screen.getByText('分解すると')).toBeInTheDocument()
+    expect(screen.getByText('アルミ')).toBeInTheDocument()
+    expect(screen.getByText('aluminium')).toBeInTheDocument()
+    expect(screen.getByText('サッシ')).toBeInTheDocument()
+    expect(screen.getByText('sash')).toBeInTheDocument()
+    // 実在確認できたパーツにはバッジを表示する
+    expect(screen.getAllByText('辞書に実在')).toHaveLength(2)
+  })
+
+  it('英語由来ではないパーツと辞書に無いパーツにはその旨を表示する', () => {
+    const 結果: JudgeResult = {
+      input: '窓サッシ',
+      verdict: 'english_compound',
+      englishWord: null,
+      note: '日本語とカタカナ語の複合語です。',
+      dictionary: null,
+      explanation: null,
+      examples: [],
+      parts: [
+        { japanese: '窓', englishWord: null, dictionary: null },
+        {
+          japanese: 'サッシ',
+          englishWord: 'sash',
+          dictionary: { exists: true, phonetic: null, meanings: [] },
+        },
+        {
+          japanese: 'レール',
+          englishWord: 'reeru',
+          dictionary: { exists: false, phonetic: null, meanings: [] },
+        },
+      ],
+    }
+    render(<ResultView result={結果} />)
+
+    expect(screen.getByText('窓')).toBeInTheDocument()
+    expect(screen.getByText('英語由来ではない')).toBeInTheDocument()
+    expect(screen.getByText('辞書に実在')).toBeInTheDocument()
+    expect(screen.getByText('辞書に無し')).toBeInTheDocument()
+  })
+
   it('辞書に無い場合はその旨と推定された英単語を表示する', () => {
     const 結果: JudgeResult = {
       input: 'サラリーマン',
