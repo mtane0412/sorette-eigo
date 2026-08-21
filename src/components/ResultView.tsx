@@ -77,8 +77,9 @@ export function ResultView({ result }: ResultViewProps) {
         <div className="result__section">
           <h3 className="result__heading">分解すると</h3>
           <ul className="result__parts">
-            {result.parts.map((パーツ) => (
-              <li key={パーツ.japanese} className="result__part">
+            {/* 同じ表記のパーツが複数現れても（例: ドアツードア）キーが衝突しないよう番号を含める */}
+            {result.parts.map((パーツ, 番号) => (
+              <li key={`${番号}-${パーツ.japanese}`} className="result__part">
                 <span className="result__part-ja">{パーツ.japanese}</span>
                 {パーツ.englishWord !== null ? (
                   <>

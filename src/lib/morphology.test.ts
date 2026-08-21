@@ -86,6 +86,31 @@ describe('analyzeMorphemes', () => {
     await expect(analyzeMorphemes('アルミサッシ')).rejects.toThrow(MorphologyApiError)
   })
 
+  it('JSON-RPC のエラー応答の場合は code と message を含む MorphologyApiError を投げる', async () => {
+    fetchモック.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: '1',
+          jsonrpc: '2.0',
+          error: { code: -32600, message: 'Invalid Request' },
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await expect(analyzeMorphemes('アルミサッシ')).rejects.toThrow(
+      '形態素解析APIがエラーを返しました（code: -32600, message: Invalid Request）',
+    )
+  })
+
+  it('API のリクエスト上限（4KB）を超える入力は送信せずに MorphologyApiError を投げる', async () => {
+    // 「あ」は UTF-8 で 3 バイトのため、2000 文字で上限の 4096 バイトを確実に超える
+    const 長すぎる入力 = 'あ'.repeat(2000)
+
+    await expect(analyzeMorphemes(長すぎる入力)).rejects.toThrow(MorphologyApiError)
+    expect(fetchモック).not.toHaveBeenCalled()
+  })
+
   it('result.tokens が無いエラーボディの場合は MorphologyApiError を投げる（fail-fast）', async () => {
     // Yahoo API は認証エラー等を 200 + エラーボディで返すことがある
     fetchモック.mockResolvedValue(
