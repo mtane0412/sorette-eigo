@@ -1,0 +1,6 @@
+# 形態素解析プロキシ（Cloudflare Worker）の設定。
+# Client ID はこのファイルに書かず、シークレットとして設定する:
+#   npx wrangler secret put YAHOO_CLIENT_ID
+name = "sorette-eigo-morphology"
+main = "index.ts"
+compatibility_date = "2026-08-01"
