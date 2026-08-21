@@ -17,15 +17,6 @@
 export type Verdict = 'english' | 'english_compound' | 'not_english' | 'not_in_dictionary'
 
 /**
- * 入力の種類。
- *
- * - `single_word`: 1 つの単語（例: コントロール）
- * - `compound`: 複数の単語がつながった複合語（例: アルミサッシ）
- * - `sentence`: 助詞や述語を含む文章（判定は未対応）
- */
-export type InputType = 'single_word' | 'compound' | 'sentence'
-
-/**
  * Gemini Nano が生成する英語の例文（日本語訳付き）。
  */
 export interface ExampleSentence {
@@ -67,19 +58,15 @@ export interface DictionaryLookupResult {
 
 /**
  * Gemini Nano による「英語由来かどうか」の判定結果。
+ *
+ * 入力の分解（複合語・文章の検出）は形態素解析（morphology.ts）が担うため、
+ * この判定は単一の単語（またはパーツ）の語源分類に専念します。
  */
 export interface EnglishOriginJudgement {
-  /** 入力の種類（単語 / 複合語 / 文章） */
-  inputType: InputType
   /** 英語由来（和製英語含む）と判定されたかどうか */
   isEnglishOrigin: boolean
   /** 元になった英単語の綴り。英語由来でない場合は null */
   englishWord: string | null
-  /**
-   * 複合語の構成パーツの日本語表記（例: ['アルミ', 'サッシ']）。複合語でない場合は空配列。
-   * パーツごとの英単語はここでは推定せず、パーツ単体を改めて語源判定にかけて求めます。
-   */
-  parts: string[]
   /** 語源についての短い日本語の補足 */
   note: string
 }

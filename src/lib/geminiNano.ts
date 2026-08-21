@@ -88,28 +88,15 @@ const 語源分類 = ['english', 'wasei_eigo', 'japanese', 'other_language'] as 
 
 type 語源 = (typeof 語源分類)[number]
 
-/** 入力の種類の分類（単語 / 複合語 / 文章） */
-const 入力タイプ分類 = ['single_word', 'compound', 'sentence'] as const
-
-type 入力タイプ = (typeof 入力タイプ分類)[number]
-
 /** 英語由来判定の構造化出力を制約する JSON Schema */
 const 英語由来判定スキーマ = {
   type: 'object',
   properties: {
-    inputType: { type: 'string', enum: 入力タイプ分類 },
     origin: { type: 'string', enum: 語源分類 },
     englishWord: { type: 'string' },
-    parts: {
-      type: 'array',
-      items: { type: 'string' },
-      // モデルの無限出力を防ぐための上限。判定パイプライン側では
-      // さらに judge.ts の MAX_COMPOUND_PARTS 個までに絞って判定する
-      maxItems: 6,
-    },
     note: { type: 'string' },
   },
-  required: ['inputType', 'origin', 'englishWord', 'parts', 'note'],
+  required: ['origin', 'englishWord', 'note'],
   additionalProperties: false,
 } as const
 
@@ -154,10 +141,8 @@ function モデル出力をJSONパースする(出力: string): unknown {
 
 /** 語源判定の構造化出力（検証済み）の形 */
 interface 語源判定出力 {
-  inputType: 入力タイプ
   origin: 語源
   englishWord: string
-  parts: string[]
   note: string
 }
 
@@ -170,11 +155,8 @@ function 語源判定として検証する(値: unknown): 語源判定出力 {
   const レコード = typeof 値 === 'object' && 値 !== null ? (値 as Record<string, unknown>) : null
   if (
     レコード !== null &&
-    (入力タイプ分類 as readonly string[]).includes(レコード.inputType as string) &&
     (語源分類 as readonly string[]).includes(レコード.origin as string) &&
     typeof レコード.englishWord === 'string' &&
-    Array.isArray(レコード.parts) &&
-    レコード.parts.every((パーツ) => typeof パーツ === 'string') &&
     typeof レコード.note === 'string'
   ) {
     return 値 as unknown as 語源判定出力
@@ -304,23 +286,17 @@ export class NanoSession {
   /**
    * 日本語の単語が英語由来（カタカナ英語・和製英語含む）かどうかを判定します。
    *
-   * あわせて入力の種類（単語 / 複合語 / 文章）を分類し、
-   * 複合語の場合は構成パーツの日本語表記も返します。
-   * パーツごとの英単語はここでは推定しません（パーツ単体を改めてこのメソッドにかけます）。
+   * 入力の分解（複合語・文章の検出）は形態素解析（morphology.ts）が担うため、
+   * この判定は単一の単語（複合語のパーツ単体を含む）の語源分類に専念します。
    *
    * @param word - 判定対象の日本語の単語
    * @throws {GeminiNanoError} モデルの出力が不正な場合
    */
   async judgeEnglishOrigin(word: string): Promise<EnglishOriginJudgement> {
     const プロンプト = [
-      `日本語の入力「${word}」を分析してください。`,
+      `日本語の単語「${word}」の語源を分類してください。`,
       '',
-      'まず inputType で入力の種類を分類してください:',
-      '- single_word: 1つの単語（例: コントロール、もちもち）',
-      '- compound: 複数の単語がつながった複合語（例: アルミサッシ、窓ガラス）',
-      '- sentence: 助詞や述語を含む文章（例: これはペンです）',
-      '',
-      '次に origin で語源を分類してください:',
+      '分類:',
       '- english: 英語の単語が日本語に外来語として入ったもの（例: コントロール、テレビ）',
       '- wasei_eigo: 英単語を組み合わせた和製英語（例: サラリーマン、コンセント）',
       '- japanese: 日本語固有の言葉。擬音語・擬態語（もちもち・ふわふわ等）や、日本語から英語へ輸出された言葉（寿司・もち・カラオケ等）もこれ',
@@ -331,11 +307,6 @@ export class NanoSession {
       'アルミ（aluminium）やスマホ（smartphone）のように省略された外来語も english とし、englishWord には省略前の完全な英単語を入れてください。',
       '',
       'english / wasei_eigo の場合は元の英単語の綴りを englishWord に入れ、それ以外は空文字にしてください。',
-      'inputType が compound の場合、englishWord には複合語全体に対応する英語表現を入れてください（例: アルミサッシ → aluminum sash）。一部のパーツだけの英単語を入れてはいけません。',
-      '',
-      'inputType が compound の場合は、parts に構成パーツの日本語表記を先頭から順に入れてください（例: アルミサッシ → ["アルミ", "サッシ"]）。',
-      'compound でない場合、parts は空配列にしてください。',
-      '',
       'note には語源の短い補足を日本語で書いてください。',
     ].join('\n')
 
@@ -346,19 +317,9 @@ export class NanoSession {
 
     // 英語の外来語・和製英語のどちらも「英語由来」として扱う
     const 英語由来 = 判定.origin === 'english' || 判定.origin === 'wasei_eigo'
-    // パーツは複合語のときだけ意味を持つ（single_word で parts を返すモデルの揺れを吸収する）
-    const パーツ一覧 =
-      判定.inputType === 'compound'
-        ? 判定.parts
-            .map((パーツ) => パーツ.trim())
-            // モデルが空のパーツを返した場合は判定できないため除外する
-            .filter((パーツ) => パーツ !== '')
-        : []
     return {
-      inputType: 判定.inputType,
       isEnglishOrigin: 英語由来,
       englishWord: 英語由来 ? 英単語を正規化する(判定.englishWord) : null,
-      parts: パーツ一覧,
       note: 判定.note,
     }
   }

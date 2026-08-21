@@ -1,14 +1,15 @@
 /**
  * judge.ts（判定パイプラインのオーケストレーション）のテスト。
  *
- * Gemini Nano・辞書 API への依存はすべて注入されたモックで置き換え、
- * 「英語由来判定 → 辞書チェック → 解説 → 例文」の流れと
- * 各分岐（英語 / 英語でない / 辞書に無い）を検証します。
+ * 形態素解析・Gemini Nano・辞書 API への依存はすべて注入されたモックで置き換え、
+ * 「形態素分解 → 語源判定 → 辞書チェック → 解説 → 例文」の流れと
+ * 各分岐（単語 / 複合語 / 文章 / 英語でない / 辞書に無い）を検証します。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_COMPOUND_PARTS, judgeWord, type JudgeDeps } from './judge'
 
 const 依存モック = {
+  analyzeMorphemes: vi.fn(),
   judgeEnglishOrigin: vi.fn(),
   lookupEnglishWord: vi.fn(),
   explainWord: vi.fn(),
@@ -16,6 +17,9 @@ const 依存モック = {
   onStep: vi.fn(),
   onProgress: vi.fn(),
 } satisfies JudgeDeps
+
+/** 名詞の形態素トークンを組み立てるヘルパー */
+const 名詞 = (表記: string) => ({ surface: 表記, pos: '名詞' })
 
 const 辞書ヒット結果 = {
   exists: true,
@@ -33,13 +37,12 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 
-describe('judgeWord', () => {
+describe('judgeWord: 単語の判定', () => {
   it('英語由来かつ辞書に実在する場合は verdict: english と解説・例文を返す', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('コントロール')])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: 'control',
-      parts: [],
       note: '英語の control が語源です。',
     })
     依存モック.lookupEnglishWord.mockResolvedValue(辞書ヒット結果)
@@ -63,11 +66,10 @@ describe('judgeWord', () => {
   })
 
   it('英語由来でない場合は verdict: not_english を返し、辞書・解説は呼ばない', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([{ surface: 'もちもち', pos: '副詞' }])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: false,
       englishWord: null,
-      parts: [],
       note: '日本語固有の擬態語です。',
     })
 
@@ -84,11 +86,10 @@ describe('judgeWord', () => {
   })
 
   it('英語由来と推定されたが辞書に無い場合は verdict: not_in_dictionary を返す', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('サラリーマン')])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: 'sarariman',
-      parts: [],
       note: '和製英語の可能性があります。',
     })
     依存モック.lookupEnglishWord.mockResolvedValue({ exists: false, phonetic: null, meanings: [] })
@@ -105,11 +106,10 @@ describe('judgeWord', () => {
 
   it('isEnglishOrigin: true でも英単語が空なら not_english として扱う', async () => {
     // モデル出力の矛盾（由来ありなのに単語なし）は辞書確認ができないため英語と断定しない
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('あいまい')])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: null,
-      parts: [],
       note: '',
     })
 
@@ -120,31 +120,31 @@ describe('judgeWord', () => {
   })
 
   it('入力の前後の空白を取り除いて判定する', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([{ surface: 'もちもち', pos: '副詞' }])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: false,
       englishWord: null,
-      parts: [],
       note: '',
     })
 
     const 結果 = await judgeWord('  もちもち  ', 依存モック)
 
     expect(結果.input).toBe('もちもち')
+    expect(依存モック.analyzeMorphemes).toHaveBeenCalledWith('もちもち')
     expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledWith('もちもち')
   })
 
   it('空文字・空白のみの入力はエラーを投げる（fail-fast）', async () => {
     await expect(judgeWord('   ', 依存モック)).rejects.toThrow()
+    expect(依存モック.analyzeMorphemes).not.toHaveBeenCalled()
     expect(依存モック.judgeEnglishOrigin).not.toHaveBeenCalled()
   })
 
   it('進行状況を onStep で順番に通知する（英語の場合）', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('コントロール')])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: 'control',
-      parts: [],
       note: '',
     })
     依存モック.lookupEnglishWord.mockResolvedValue(辞書ヒット結果)
@@ -154,6 +154,7 @@ describe('judgeWord', () => {
     await judgeWord('コントロール', 依存モック)
 
     expect(依存モック.onStep.mock.calls.map((呼び出し) => 呼び出し[0])).toEqual([
+      'analyzing_morphemes',
       'judging_origin',
       'checking_dictionary',
       'explaining',
@@ -162,11 +163,10 @@ describe('judgeWord', () => {
   })
 
   it('英語の場合、辞書チェック後と解説生成後に途中結果を onProgress で通知する', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('コントロール')])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: 'control',
-      parts: [],
       note: '英語の control が語源です。',
     })
     依存モック.lookupEnglishWord.mockResolvedValue(辞書ヒット結果)
@@ -209,22 +209,20 @@ describe('judgeWord', () => {
 
   it('途中で確定するケース（英語でない・辞書に無い）では onProgress を呼ばない', async () => {
     // 英語でない場合: 由来判定の時点で最終結果が確定するため、途中結果は存在しない
+    依存モック.analyzeMorphemes.mockResolvedValue([{ surface: 'もちもち', pos: '副詞' }])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: false,
       englishWord: null,
-      parts: [],
       note: '日本語固有の擬態語です。',
     })
     await judgeWord('もちもち', 依存モック)
     expect(依存モック.onProgress).not.toHaveBeenCalled()
 
     // 辞書に無い場合: 辞書チェックの時点で最終結果が確定するため、途中結果は存在しない
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('サラリーマン')])
     依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'single_word',
       isEnglishOrigin: true,
       englishWord: 'sarariman',
-      parts: [],
       note: '和製英語の可能性があります。',
     })
     依存モック.lookupEnglishWord.mockResolvedValue({ exists: false, phonetic: null, meanings: [] })
@@ -234,31 +232,6 @@ describe('judgeWord', () => {
 })
 
 describe('judgeWord: 複合語の判定', () => {
-  /** 「アルミサッシ」の全体判定: 全体は aluminum sash（辞書に無い）、パーツはアルミ・サッシ */
-  const アルミサッシ全体判定 = {
-    inputType: 'compound' as const,
-    isEnglishOrigin: true,
-    englishWord: 'aluminum sash',
-    parts: ['アルミ', 'サッシ'],
-    note: '英単語を組み合わせた複合語です。',
-  }
-  /** パーツ「アルミ」単体の従来判定 */
-  const アルミ単体判定 = {
-    inputType: 'single_word' as const,
-    isEnglishOrigin: true,
-    englishWord: 'aluminium',
-    parts: [],
-    note: '英語の aluminium が語源です。',
-  }
-  /** パーツ「サッシ」単体の従来判定 */
-  const サッシ単体判定 = {
-    inputType: 'single_word' as const,
-    isEnglishOrigin: true,
-    englishWord: 'sash',
-    parts: [],
-    note: '英語の sash が語源です。',
-  }
-
   const アルミの辞書結果 = {
     exists: true,
     phonetic: null,
@@ -271,36 +244,36 @@ describe('judgeWord: 複合語の判定', () => {
   }
   const 辞書ミス結果 = { exists: false, phonetic: null, meanings: [] }
 
-  /** 「アルミサッシ」用の語源判定モック（全体→パーツの順に呼ばれる） */
-  const アルミサッシの語源判定モックを用意する = (全体判定 = アルミサッシ全体判定) => {
+  /** 「アルミサッシ」用のモック（形態素分解 + パーツごとの語源判定） */
+  const アルミサッシのモックを用意する = () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('アルミ'), 名詞('サッシ')])
     依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === 'アルミサッシ') return 全体判定
-      if (単語 === 'アルミ') return アルミ単体判定
-      if (単語 === 'サッシ') return サッシ単体判定
+      if (単語 === 'アルミ') {
+        return { isEnglishOrigin: true, englishWord: 'aluminium', note: '英語の aluminium が語源です。' }
+      }
+      if (単語 === 'サッシ') {
+        return { isEnglishOrigin: true, englishWord: 'sash', note: '英語の sash が語源です。' }
+      }
       throw new Error(`想定外の判定対象: ${単語}`)
     })
-  }
-
-  /** アルミ・サッシは辞書に実在し、それ以外（全体の aluminum sash）は無い辞書モック */
-  const アルミサッシの辞書モックを用意する = () => {
     依存モック.lookupEnglishWord.mockImplementation(async (単語: string) => {
       if (単語 === 'aluminium') return アルミの辞書結果
       if (単語 === 'sash') return サッシの辞書結果
-      return 辞書ミス結果
+      return 辞書ミス結果 // 合成した全体（aluminium sash）は辞書に無い
     })
   }
 
-  it('全体は辞書に無くても、パーツごとの従来判定で実在する英単語が確認できれば english_compound を返す', async () => {
-    アルミサッシの語源判定モックを用意する()
-    アルミサッシの辞書モックを用意する()
+  it('パーツごとに語源判定し、実在する英単語が確認できれば english_compound を返す', async () => {
+    アルミサッシのモックを用意する()
 
     const 結果 = await judgeWord('アルミサッシ', 依存モック)
 
     expect(結果).toEqual({
       input: 'アルミサッシ',
       verdict: 'english_compound',
-      englishWord: 'aluminum sash',
-      note: '英単語を組み合わせた複合語です。',
+      // 全パーツが英語由来なので、パーツの英単語を結合した全体表現を表示する
+      englishWord: 'aluminium sash',
+      note: '',
       dictionary: 辞書ミス結果,
       explanation: null,
       examples: [],
@@ -309,23 +282,28 @@ describe('judgeWord: 複合語の判定', () => {
         { japanese: 'サッシ', englishWord: 'sash', dictionary: サッシの辞書結果 },
       ],
     })
-    // 語源判定は全体 1 回 + パーツ 2 回
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(3)
-    // 辞書照会は全体 + パーツ 2 つの計 3 回
+    // 語源判定はパーツ 2 回のみ（全体への判定は行わない）
+    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(2)
+    // 辞書照会はパーツ 2 回 + 合成した全体 1 回
     expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(3)
+    expect(依存モック.lookupEnglishWord).toHaveBeenCalledWith('aluminium sash')
     // 解説・例文は複合語では生成しない
     expect(依存モック.explainWord).not.toHaveBeenCalled()
     expect(依存モック.makeExampleSentences).not.toHaveBeenCalled()
   })
 
-  it('複合語でも全体が辞書に実在すれば従来どおり english を優先する', async () => {
-    // 「アイスクリーム」のように複合語全体がひとつの英語表現として実在するケース
-    依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'compound',
-      isEnglishOrigin: true,
-      englishWord: 'ice cream',
-      parts: ['アイス', 'クリーム'],
-      note: '英語の ice cream が語源です。',
+  it('全パーツが英語由来で、結合した全体表現が辞書に実在すれば english に昇格する', async () => {
+    // 「アイスクリーム」: 形態素解析はアイス + クリームに分解するが、
+    // ice cream はひとつの英語表現として実在するため english とする
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('アイス'), 名詞('クリーム')])
+    依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
+      if (単語 === 'アイス') {
+        return { isEnglishOrigin: true, englishWord: 'ice', note: '' }
+      }
+      if (単語 === 'クリーム') {
+        return { isEnglishOrigin: true, englishWord: 'cream', note: '' }
+      }
+      throw new Error(`想定外の判定対象: ${単語}`)
     })
     依存モック.lookupEnglishWord.mockResolvedValue(辞書ヒット結果)
     依存モック.explainWord.mockResolvedValue('解説')
@@ -334,69 +312,23 @@ describe('judgeWord: 複合語の判定', () => {
     const 結果 = await judgeWord('アイスクリーム', 依存モック)
 
     expect(結果.verdict).toBe('english')
+    expect(結果.englishWord).toBe('ice cream')
     expect(結果.parts).toBeUndefined()
-    // 全体で確定するため、パーツごとの語源判定・辞書照会は行わない
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(1)
-    expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(1)
+    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(2)
     expect(依存モック.lookupEnglishWord).toHaveBeenCalledWith('ice cream')
+    expect(依存モック.explainWord).toHaveBeenCalledWith('ice cream', 'アイスクリーム')
   })
 
-  it('複合語なのに全体の英単語が 1 語だけの場合は全体照会せずパーツ判定する', async () => {
-    // 実機で確認した誤判定の再現: モデルが複合語全体の英語表現ではなく
-    // 「サッシ」の分だけの sash を englishWord に返すと、全体照会で sash が
-    // 辞書ヒットして「アルミサッシ＝英語(sash)」になってしまう。
-    // 2 パーツ以上に対応する英語表現は通常 2 語以上になるため、1 語だけなら信用しない
-    アルミサッシの語源判定モックを用意する({ ...アルミサッシ全体判定, englishWord: 'sash' })
-    アルミサッシの辞書モックを用意する()
-
-    const 結果 = await judgeWord('アルミサッシ', 依存モック)
-
-    expect(結果.verdict).toBe('english_compound')
-    // 信用できない全体の英単語は複合語全体の対応語として表示しない
-    expect(結果.englishWord).toBeNull()
-    expect(結果.parts).toEqual([
-      { japanese: 'アルミ', englishWord: 'aluminium', dictionary: アルミの辞書結果 },
-      { japanese: 'サッシ', englishWord: 'sash', dictionary: サッシの辞書結果 },
-    ])
-    // 全体照会はスキップし、パーツ 2 つ分だけ照会する
-    expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(2)
-    // 全体照会が無いため checking_dictionary は通知しない
-    expect(依存モック.onStep.mock.calls.map((呼び出し) => 呼び出し[0])).toEqual([
-      'judging_origin',
-      'checking_parts',
-    ])
-  })
-
-  it('英語由来でないカタカナのパーツは、パーツ単体の従来判定で除外する', async () => {
-    // 「パンナイフ」: パンはポルトガル語由来なので、パーツ単体の語源判定（enum 分類）で
-    // 英語由来ではないと判定され、対訳（bread）が紛れ込まない
+  it('英語由来でないパーツを含む場合は全体表現へ昇格せず english_compound を返す', async () => {
+    // 「パンナイフ」: パンはポルトガル語由来なので、たとえ対訳の bread knife が
+    // 辞書に実在しても「パンナイフ＝英語」とはしない
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('パン'), 名詞('ナイフ')])
     依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === 'パンナイフ') {
-        return {
-          inputType: 'compound',
-          isEnglishOrigin: false,
-          englishWord: null,
-          parts: ['パン', 'ナイフ'],
-          note: '外来語を組み合わせた複合語です。',
-        }
-      }
       if (単語 === 'パン') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: false,
-          englishWord: null,
-          parts: [],
-          note: 'ポルトガル語由来です。',
-        }
+        return { isEnglishOrigin: false, englishWord: null, note: 'ポルトガル語由来です。' }
       }
       if (単語 === 'ナイフ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'knife',
-          parts: [],
-          note: '英語の knife が語源です。',
-        }
+        return { isEnglishOrigin: true, englishWord: 'knife', note: '英語の knife が語源です。' }
       }
       throw new Error(`想定外の判定対象: ${単語}`)
     })
@@ -405,174 +337,23 @@ describe('judgeWord: 複合語の判定', () => {
     const 結果 = await judgeWord('パンナイフ', 依存モック)
 
     expect(結果.verdict).toBe('english_compound')
+    // 一部のパーツだけの英単語を複合語全体の対応語として表示しない
+    expect(結果.englishWord).toBeNull()
     expect(結果.parts).toEqual([
       { japanese: 'パン', englishWord: null, dictionary: null },
       { japanese: 'ナイフ', englishWord: 'knife', dictionary: サッシの辞書結果 },
     ])
-    // 英語由来でないパーツ（パン）は辞書照会しない
+    // 辞書照会は英語由来のパーツ（knife）の 1 回だけ。全体表現の照会はしない
     expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(1)
     expect(依存モック.lookupEnglishWord).toHaveBeenCalledWith('knife')
   })
 
-  it('パーツの英単語がどれも辞書に無ければ従来の not_in_dictionary にフォールバックする', async () => {
-    アルミサッシの語源判定モックを用意する()
-    依存モック.lookupEnglishWord.mockResolvedValue(辞書ミス結果)
-
-    const 結果 = await judgeWord('アルミサッシ', 依存モック)
-
-    expect(結果.verdict).toBe('not_in_dictionary')
-    expect(結果.englishWord).toBe('aluminum sash')
-    expect(結果.parts).toBeUndefined()
-  })
-
-  it('カタカナ・英字を含むパーツがひとつも無い複合語は、パーツ判定せず not_english を返す', async () => {
-    // 「手紙」: 英語の外来語は原則カタカナ・英字表記なので、漢字のみのパーツは判定不要
-    依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'compound',
-      isEnglishOrigin: false,
-      englishWord: null,
-      parts: ['手', '紙'],
-      note: '日本語固有の言葉です。',
-    })
-
-    const 結果 = await judgeWord('手紙', 依存モック)
-
-    expect(結果.verdict).toBe('not_english')
-    // 語源判定は全体の 1 回だけで、パーツの推論・辞書照会は行わない
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(1)
-    expect(依存モック.lookupEnglishWord).not.toHaveBeenCalled()
-  })
-
-  it('パーツが 1 つしか無い場合は複合語として扱わず従来の判定に任せる', async () => {
-    依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'compound',
-      isEnglishOrigin: false,
-      englishWord: null,
-      parts: ['もちもち'],
-      note: '日本語固有の擬態語です。',
-    })
-
-    const 結果 = await judgeWord('もちもち', 依存モック)
-
-    expect(結果.verdict).toBe('not_english')
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(1)
-    expect(依存モック.lookupEnglishWord).not.toHaveBeenCalled()
-  })
-
-  it('パーツの判定は MAX_COMPOUND_PARTS 個までに制限する', async () => {
-    // オンデバイス推論はパーツごとに数秒かかるため、先頭から MAX_COMPOUND_PARTS 個だけを対象にする
+  it('漢字・ひらがなのみのパーツは語源判定せず「英語由来ではない」として扱う', async () => {
+    // 「窓サッシ」: 英語の外来語は原則カタカナ・英字表記のため、窓は推論不要
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('窓'), 名詞('サッシ')])
     依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === 'ワンツースリーフォーファイブシックス') {
-        return {
-          inputType: 'compound',
-          isEnglishOrigin: false,
-          englishWord: null,
-          parts: ['ワン', 'ツー', 'スリー', 'フォー', 'ファイブ', 'シックス'],
-          note: '英数字を並べた複合語です。',
-        }
-      }
-      return {
-        inputType: 'single_word',
-        isEnglishOrigin: true,
-        englishWord: 'one',
-        parts: [],
-        note: '英語の数字です。',
-      }
-    })
-    依存モック.lookupEnglishWord.mockResolvedValue(サッシの辞書結果)
-
-    const 結果 = await judgeWord('ワンツースリーフォーファイブシックス', 依存モック)
-
-    expect(結果.verdict).toBe('english_compound')
-    expect(結果.parts).toHaveLength(MAX_COMPOUND_PARTS)
-    // 語源判定は全体 1 回 + パーツ MAX_COMPOUND_PARTS 回
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(1 + MAX_COMPOUND_PARTS)
-    expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(MAX_COMPOUND_PARTS)
-  })
-
-  it('複合語の判定では onStep を判定→辞書→パーツ確認の順に通知する', async () => {
-    アルミサッシの語源判定モックを用意する()
-    アルミサッシの辞書モックを用意する()
-
-    await judgeWord('アルミサッシ', 依存モック)
-
-    expect(依存モック.onStep.mock.calls.map((呼び出し) => 呼び出し[0])).toEqual([
-      'judging_origin',
-      'checking_dictionary',
-      'checking_parts',
-    ])
-  })
-
-  it('verdict の確定後は、パーツが完了するたびに途中結果を onProgress で通知する', async () => {
-    // アルミ（1 つ目）が辞書に実在した時点で english_compound が確定するため、
-    // 最後のパーツ（サッシ）を判定する前に、完了済みのパーツだけで途中結果を通知する
-    アルミサッシの語源判定モックを用意する()
-    アルミサッシの辞書モックを用意する()
-
-    await judgeWord('アルミサッシ', 依存モック)
-
-    expect(依存モック.onProgress).toHaveBeenCalledTimes(1)
-    expect(依存モック.onProgress).toHaveBeenCalledWith({
-      input: 'アルミサッシ',
-      verdict: 'english_compound',
-      englishWord: 'aluminum sash',
-      note: '英単語を組み合わせた複合語です。',
-      dictionary: 辞書ミス結果,
-      explanation: null,
-      examples: [],
-      parts: [{ japanese: 'アルミ', englishWord: 'aluminium', dictionary: アルミの辞書結果 }],
-    })
-  })
-
-  it('最初のパーツが辞書に無い場合、verdict が未確定の間は onProgress を呼ばない', async () => {
-    // アルミが辞書に無く、最後のサッシで初めて確定するケース: 途中通知は無く戻り値だけで返す
-    アルミサッシの語源判定モックを用意する()
-    依存モック.lookupEnglishWord.mockImplementation(async (単語: string) => {
-      if (単語 === 'sash') return サッシの辞書結果
-      return 辞書ミス結果
-    })
-
-    const 結果 = await judgeWord('アルミサッシ', 依存モック)
-
-    expect(結果.verdict).toBe('english_compound')
-    expect(依存モック.onProgress).not.toHaveBeenCalled()
-  })
-})
-
-describe('judgeWord: 語種が混在する入力（漢字・ひらがな + カタカナ・英字）', () => {
-  const サッシの辞書結果 = {
-    exists: true,
-    phonetic: null,
-    meanings: [{ partOfSpeech: 'noun', definition: 'A window frame.' }],
-  }
-  const アルミの辞書結果 = {
-    exists: true,
-    phonetic: null,
-    meanings: [{ partOfSpeech: 'noun', definition: 'A silvery-white metal.' }],
-  }
-
-  it('モデルが複合語と判定しなくても、機械分割してパーツ判定する', async () => {
-    // 実機で確認した誤判定の再現: モデルが「窓サッシ」を分解せず englishWord に
-    // sash だけを返すと、全体照会で sash が辞書ヒットして「窓サッシ＝英語」になってしまう。
-    // 漢字とカタカナが混在する入力は、全体がひとつの英語の外来語ではあり得ない
-    依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === '窓サッシ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'sash',
-          parts: [],
-          note: 'サッシは英語の sash に由来します。',
-        }
-      }
       if (単語 === 'サッシ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'sash',
-          parts: [],
-          note: '英語の sash が語源です。',
-        }
+        return { isEnglishOrigin: true, englishWord: 'sash', note: '英語の sash が語源です。' }
       }
       throw new Error(`想定外の判定対象: ${単語}`)
     })
@@ -581,155 +362,180 @@ describe('judgeWord: 語種が混在する入力（漢字・ひらがな + カ�
     const 結果 = await judgeWord('窓サッシ', 依存モック)
 
     expect(結果.verdict).toBe('english_compound')
+    expect(結果.englishWord).toBeNull()
     expect(結果.parts).toEqual([
       { japanese: '窓', englishWord: null, dictionary: null },
       { japanese: 'サッシ', englishWord: 'sash', dictionary: サッシの辞書結果 },
     ])
-    // 混在入力では全体の英単語を信用できないため、複合語全体の対応語として表示しない
-    expect(結果.englishWord).toBeNull()
-    // 語源判定は全体 1 回 + カタカナのパーツ（サッシ）1 回。漢字のみの窓は推論しない
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(2)
-    // 全体照会はせず、パーツ（sash）の 1 回だけ照会する
+    // 語源判定はカタカナのパーツ（サッシ）の 1 回だけ
+    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(1)
     expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(1)
-    expect(依存モック.lookupEnglishWord).toHaveBeenCalledWith('sash')
-    expect(依存モック.onStep.mock.calls.map((呼び出し) => 呼び出し[0])).toEqual([
-      'judging_origin',
-      'checking_parts',
-    ])
   })
 
-  it('英語由来のパーツが無ければ従来どおり not_english を返す', async () => {
-    // 「パン工場」: パンはポルトガル語由来・工場は日本語なので英語は含まれない。
-    // パンはパーツ単体の従来判定（enum 分類）で英語由来ではないと判定される
-    依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === 'パン工場') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: false,
-          englishWord: null,
-          parts: [],
-          note: 'ポルトガル語由来',
-        }
-      }
-      if (単語 === 'パン') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: false,
-          englishWord: null,
-          parts: [],
-          note: 'ポルトガル語由来です。',
-        }
-      }
-      throw new Error(`想定外の判定対象: ${単語}`)
+  it('英語由来のパーツがひとつも無ければ not_english を返す', async () => {
+    // 「パン工場」: パンはポルトガル語由来・工場は日本語なので英語は含まれない
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('パン'), 名詞('工場')])
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: false,
+      englishWord: null,
+      note: 'ポルトガル語由来です。',
     })
 
     const 結果 = await judgeWord('パン工場', 依存モック)
 
     expect(結果.verdict).toBe('not_english')
-    // カタカナのパーツ（パン）は従来判定にかけるが、辞書照会には至らない
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(2)
+    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(1)
+    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledWith('パン')
     expect(依存モック.lookupEnglishWord).not.toHaveBeenCalled()
   })
 
-  it('カタカナのパーツが複数あっても、それぞれ従来判定して english_compound を返す', async () => {
-    // 「アルミ製サッシ」: パーツごとに従来判定するため、全体の英単語の
-    // 紐付けに頼らず アルミ・サッシ の両方を判定できる
-    依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === 'アルミ製サッシ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'sash',
-          parts: [],
-          note: '英語の sash に由来します。',
-        }
-      }
-      if (単語 === 'アルミ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'aluminium',
-          parts: [],
-          note: '英語の aluminium が語源です。',
-        }
-      }
-      if (単語 === 'サッシ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'sash',
-          parts: [],
-          note: '英語の sash が語源です。',
-        }
-      }
-      throw new Error(`想定外の判定対象: ${単語}`)
-    })
-    依存モック.lookupEnglishWord.mockImplementation(async (単語: string) => {
-      if (単語 === 'aluminium') return アルミの辞書結果
-      if (単語 === 'sash') return サッシの辞書結果
-      return { exists: false, phonetic: null, meanings: [] }
-    })
+  it('カタカナ・英字を含むパーツがひとつも無ければ語源判定せず not_english を返す', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('手'), 名詞('紙')])
 
-    const 結果 = await judgeWord('アルミ製サッシ', 依存モック)
+    const 結果 = await judgeWord('手紙', 依存モック)
 
-    expect(結果.verdict).toBe('english_compound')
-    expect(結果.parts).toEqual([
-      { japanese: 'アルミ', englishWord: 'aluminium', dictionary: アルミの辞書結果 },
-      { japanese: '製', englishWord: null, dictionary: null },
-      { japanese: 'サッシ', englishWord: 'sash', dictionary: サッシの辞書結果 },
-    ])
-    // 語源判定は全体 1 回 + カタカナのパーツ 2 回（漢字のみの製は推論しない）
-    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(3)
-    expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(2)
+    expect(結果.verdict).toBe('not_english')
+    expect(依存モック.judgeEnglishOrigin).not.toHaveBeenCalled()
+    expect(依存モック.lookupEnglishWord).not.toHaveBeenCalled()
   })
 
-  it('モデルがパーツを返した場合は機械分割ではなくモデルの分解を使う', async () => {
+  it('英語由来のパーツがどれも辞書に無ければ not_in_dictionary を返す', async () => {
+    アルミサッシのモックを用意する()
+    依存モック.lookupEnglishWord.mockResolvedValue(辞書ミス結果)
+
+    const 結果 = await judgeWord('アルミサッシ', 依存モック)
+
+    expect(結果.verdict).toBe('not_in_dictionary')
+    // 推定された英単語として、パーツの英単語を結合した全体表現を表示する
+    expect(結果.englishWord).toBe('aluminium sash')
+    expect(結果.parts).toBeUndefined()
+  })
+
+  it('一部のパーツのみ英語由来で辞書に無い場合は、その英単語だけを推定として表示する', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('パン'), 名詞('ナイフ')])
     依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
-      if (単語 === '窓サッシ') {
-        return {
-          inputType: 'compound',
-          isEnglishOrigin: false,
-          englishWord: null,
-          parts: ['窓', 'サッシ'],
-          note: '日本語とカタカナ語の複合語です。',
-        }
+      if (単語 === 'パン') {
+        return { isEnglishOrigin: false, englishWord: null, note: '' }
       }
-      if (単語 === 'サッシ') {
-        return {
-          inputType: 'single_word',
-          isEnglishOrigin: true,
-          englishWord: 'sash',
-          parts: [],
-          note: '英語の sash が語源です。',
-        }
+      return { isEnglishOrigin: true, englishWord: 'naifu', note: '' }
+    })
+    依存モック.lookupEnglishWord.mockResolvedValue(辞書ミス結果)
+
+    const 結果 = await judgeWord('パンナイフ', 依存モック)
+
+    expect(結果.verdict).toBe('not_in_dictionary')
+    expect(結果.englishWord).toBe('naifu')
+  })
+
+  it('パーツの判定は MAX_COMPOUND_PARTS 個までに制限する', async () => {
+    // オンデバイス推論はパーツごとに数秒かかるため、先頭から MAX_COMPOUND_PARTS 個だけを対象にする
+    依存モック.analyzeMorphemes.mockResolvedValue(
+      ['ワン', 'ツー', 'スリー', 'フォー', 'ファイブ', 'シックス'].map(名詞),
+    )
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: true,
+      englishWord: 'one',
+      note: '',
+    })
+    依存モック.lookupEnglishWord.mockImplementation(async (単語: string) =>
+      // 合成した全体表現（スペースを含む）は辞書に無く、単語は実在する想定
+      単語.includes(' ') ? 辞書ミス結果 : サッシの辞書結果,
+    )
+
+    const 結果 = await judgeWord('ワンツースリーフォーファイブシックス', 依存モック)
+
+    expect(結果.verdict).toBe('english_compound')
+    expect(結果.parts).toHaveLength(MAX_COMPOUND_PARTS)
+    expect(依存モック.judgeEnglishOrigin).toHaveBeenCalledTimes(MAX_COMPOUND_PARTS)
+  })
+
+  it('複合語の判定では onStep を分解→パーツ判定→全体の辞書確認の順に通知する', async () => {
+    アルミサッシのモックを用意する()
+
+    await judgeWord('アルミサッシ', 依存モック)
+
+    expect(依存モック.onStep.mock.calls.map((呼び出し) => 呼び出し[0])).toEqual([
+      'analyzing_morphemes',
+      'checking_parts',
+      'checking_dictionary',
+    ])
+  })
+
+  it('english への昇格があり得る間（全パーツ英語由来）は onProgress を呼ばない', async () => {
+    // english_compound の途中結果を通知した後で english に変わると表示が揺れるため、
+    // 昇格の可能性が消えるまでは通知しない
+    アルミサッシのモックを用意する()
+
+    await judgeWord('アルミサッシ', 依存モック)
+
+    expect(依存モック.onProgress).not.toHaveBeenCalled()
+  })
+
+  it('昇格の可能性が消えた後は、パーツが完了するたびに途中結果を onProgress で通知する', async () => {
+    // 「パンナイフセット」: パン（英語由来でない）の時点で昇格は消え、
+    // ナイフの実在確認で english_compound が確定するため、途中結果を通知できる
+    依存モック.analyzeMorphemes.mockResolvedValue([名詞('パン'), 名詞('ナイフ'), 名詞('セット')])
+    依存モック.judgeEnglishOrigin.mockImplementation(async (単語: string) => {
+      if (単語 === 'パン') {
+        return { isEnglishOrigin: false, englishWord: null, note: '' }
       }
-      throw new Error(`想定外の判定対象: ${単語}`)
+      if (単語 === 'ナイフ') {
+        return { isEnglishOrigin: true, englishWord: 'knife', note: '' }
+      }
+      return { isEnglishOrigin: true, englishWord: 'set', note: '' }
     })
     依存モック.lookupEnglishWord.mockResolvedValue(サッシの辞書結果)
 
-    const 結果 = await judgeWord('窓サッシ', 依存モック)
+    await judgeWord('パンナイフセット', 依存モック)
 
-    expect(結果.verdict).toBe('english_compound')
-    expect(結果.parts).toEqual([
-      { japanese: '窓', englishWord: null, dictionary: null },
-      { japanese: 'サッシ', englishWord: 'sash', dictionary: サッシの辞書結果 },
-    ])
+    // 2 パーツ目（ナイフ）完了時点の 1 回だけ通知される（最後のセットは戻り値で返す）
+    expect(依存モック.onProgress).toHaveBeenCalledTimes(1)
+    expect(依存モック.onProgress).toHaveBeenCalledWith({
+      input: 'パンナイフセット',
+      verdict: 'english_compound',
+      englishWord: null,
+      note: '',
+      dictionary: null,
+      explanation: null,
+      examples: [],
+      parts: [
+        { japanese: 'パン', englishWord: null, dictionary: null },
+        { japanese: 'ナイフ', englishWord: 'knife', dictionary: サッシの辞書結果 },
+      ],
+    })
   })
 })
 
 describe('judgeWord: 文章の入力', () => {
-  it('文章と判定された入力はエラーを投げて単語での入力を案内する（fail-fast）', async () => {
-    依存モック.judgeEnglishOrigin.mockResolvedValue({
-      inputType: 'sentence',
-      isEnglishOrigin: false,
-      englishWord: null,
-      parts: [],
-      note: '文章です。',
-    })
+  it('助詞・判定詞を含む入力は文章とみなしてエラーを投げる（fail-fast）', async () => {
+    依存モック.analyzeMorphemes.mockResolvedValue([
+      { surface: 'これ', pos: '指示詞' },
+      { surface: 'は', pos: '助詞' },
+      { surface: 'ペン', pos: '名詞' },
+      { surface: 'です', pos: '判定詞' },
+    ])
 
     await expect(judgeWord('これはペンです', 依存モック)).rejects.toThrow(
       '文章の判定には対応していません',
     )
+    expect(依存モック.judgeEnglishOrigin).not.toHaveBeenCalled()
     expect(依存モック.lookupEnglishWord).not.toHaveBeenCalled()
+  })
+
+  it('形態素が 1 つだけなら助詞相当の品詞でも文章とはみなさない', async () => {
+    // 「サボる」のような 1 語の動詞入力を文章として弾かないようにする
+    依存モック.analyzeMorphemes.mockResolvedValue([{ surface: 'サボる', pos: '動詞' }])
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: true,
+      englishWord: 'sabotage',
+      note: '英語の sabotage が語源です。',
+    })
+    依存モック.lookupEnglishWord.mockResolvedValue(辞書ヒット結果)
+    依存モック.explainWord.mockResolvedValue('解説')
+    依存モック.makeExampleSentences.mockResolvedValue(例文リスト)
+
+    const 結果 = await judgeWord('サボる', 依存モック)
+
+    expect(結果.verdict).toBe('english')
   })
 })
