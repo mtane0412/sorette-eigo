@@ -504,15 +504,12 @@ button:focus-visible {
   text-align: center;
 }
 
-/* 予備辞書で確認した場合の注記 */
+/* 判定元の辞書（控えめなキャプション表示） */
 .result__dict-source {
-  margin: 12px auto 0;
-  width: fit-content;
-  color: var(--gold-dark);
-  background: var(--gold-soft);
-  font-size: 0.8rem;
-  border-radius: var(--radius-pill);
-  padding: 4px 16px;
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .result__section {

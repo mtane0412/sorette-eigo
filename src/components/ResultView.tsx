@@ -4,7 +4,7 @@
  * 英語禁止ゲームの判定札のように、結果を「スタンプ」として大きく表示し、
  * 英語の場合は英単語・発音・解説・辞書の定義・例文を続けて表示します。
  */
-import type { JudgeResult, Verdict } from '../types'
+import type { DictionarySource, JudgeResult, Verdict } from '../types'
 
 interface ResultViewProps {
   /** 表示する判定結果 */
@@ -24,6 +24,12 @@ const 判定表示: Record<
     title: '辞書に見つかりませんでした',
     tone: 'unknown',
   },
+}
+
+/** 判定元として表示する辞書の名称 */
+const 辞書名表示: Record<DictionarySource, string> = {
+  dictionaryapi: 'Free Dictionary API',
+  datamuse: 'Datamuse API',
 }
 
 /**
@@ -54,9 +60,10 @@ export function ResultView({ result }: ResultViewProps) {
 
       {result.note !== '' && <p className="result__note">{result.note}</p>}
 
-      {result.dictionary?.source === 'datamuse' && (
+      {/* source がない古い履歴データでは表示しない */}
+      {result.dictionary?.source !== undefined && (
         <p className="result__dict-source">
-          メイン辞書（Free Dictionary API）に接続できなかったため、予備辞書（Datamuse）で確認しました
+          判定元: {辞書名表示[result.dictionary.source]}
         </p>
       )}
 

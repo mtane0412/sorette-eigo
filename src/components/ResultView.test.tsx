@@ -42,7 +42,7 @@ describe('ResultView', () => {
     expect(screen.getByText('The remote control is broken.')).toBeInTheDocument()
   })
 
-  it('予備辞書（Datamuse）で確認した場合はその旨を表示する', () => {
+  it('予備辞書（Datamuse）で確認した場合は判定元を小さく表示する', () => {
     const 予備辞書の結果: JudgeResult = {
       ...英語の判定結果,
       dictionary: {
@@ -54,17 +54,24 @@ describe('ResultView', () => {
     }
     render(<ResultView result={予備辞書の結果} />)
 
-    expect(screen.getByText(/予備辞書（Datamuse）で確認しました/)).toBeInTheDocument()
+    expect(screen.getByText('判定元: Datamuse API')).toBeInTheDocument()
   })
 
-  it('メイン辞書で確認した場合は予備辞書の注記を表示しない', () => {
+  it('メイン辞書で確認した場合は判定元を Free Dictionary API として表示する', () => {
     const メイン辞書の結果: JudgeResult = {
       ...英語の判定結果,
       dictionary: { ...英語の判定結果.dictionary!, source: 'dictionaryapi' },
     }
     render(<ResultView result={メイン辞書の結果} />)
 
-    expect(screen.queryByText(/予備辞書/)).not.toBeInTheDocument()
+    expect(screen.getByText('判定元: Free Dictionary API')).toBeInTheDocument()
+  })
+
+  it('辞書情報に判定元がない場合（古い履歴データ）は判定元を表示しない', () => {
+    // フォールバック導入前に保存された履歴には source が存在しない
+    render(<ResultView result={英語の判定結果} />)
+
+    expect(screen.queryByText(/判定元:/)).not.toBeInTheDocument()
   })
 
   it('英語でない場合はセーフ判定と補足のみ表示する', () => {
