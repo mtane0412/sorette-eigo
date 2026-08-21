@@ -15,18 +15,20 @@
   --surface-tint: #f4f9fd;
   --line: #dfeaf3;
   --text: #33475b;
-  --muted: #8fa3b5;
-  --sky: #3ea8ff; /* アクセント（操作・見出し） */
-  --sky-dark: #1e8ae6;
+  --muted: #5c7184; /* 補助テキスト（白背景とのコントラスト 4.5:1 以上） */
+  --sky: #3ea8ff; /* アクセント（装飾: ドット・フォーカスリング） */
+  --sky-dark: #0f6ab8; /* 文字・ボタン背景（白文字とのコントラスト 4.5:1 以上） */
+  --sky-deep: #0a4d87; /* ボタンの立体エッジ */
   --sky-soft: #e3f2ff;
-  --out: #ff6f7d; /* アウト（英語） */
-  --out-dark: #e4525f;
+  --out: #f2485a; /* アウト（英語）: ボーダー・タイトルアクセント */
+  --out-dark: #b62f43; /* アウトの文字色（淡色背景とのコントラスト 4.5:1 以上） */
   --out-soft: #ffeef0;
-  --safe: #2ec99a; /* セーフ（英語じゃない） */
-  --safe-dark: #1fa87e;
+  --safe: #2ec99a; /* セーフ（英語じゃない）: ボーダー */
+  --safe-dark: #0a7d5c; /* セーフの文字・ボタン背景 */
+  --safe-deep: #06553f; /* ボタンの立体エッジ */
   --safe-soft: #e5faf3;
-  --gold: #ffab3d; /* 辞書なし・注意 */
-  --gold-dark: #e08f24;
+  --gold: #ffab3d; /* 辞書なし・注意: ボーダー */
+  --gold-dark: #96600f; /* 注意の文字色 */
   --gold-soft: #fff4e2;
 
   /* タイポグラフィ: 丸ゴシックでそろえる */
@@ -202,10 +204,10 @@ body {
   font-weight: 700;
   font-size: 1rem;
   color: #fff;
-  background: var(--safe);
+  background: var(--safe-dark);
   border: none;
   border-radius: var(--radius-pill);
-  box-shadow: 0 4px 0 var(--safe-dark);
+  box-shadow: 0 4px 0 var(--safe-deep);
   padding: 10px 26px;
   cursor: pointer;
 }
@@ -216,7 +218,7 @@ body {
 
 .model-card__button:active {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--safe-dark);
+  box-shadow: 0 1px 0 var(--safe-deep);
 }
 
 /* ダウンロード進捗バー */
@@ -271,7 +273,7 @@ body {
 
 .input-form__field:focus-visible {
   outline: none;
-  border-color: var(--sky);
+  border-color: var(--sky-dark);
   box-shadow: 0 0 0 4px var(--sky-soft);
 }
 
@@ -281,10 +283,10 @@ body {
   font-size: 1.05rem;
   letter-spacing: 0.05em;
   color: #fff;
-  background: var(--sky);
+  background: var(--sky-dark);
   border: none;
   border-radius: var(--radius-pill);
-  box-shadow: 0 4px 0 var(--sky-dark);
+  box-shadow: 0 4px 0 var(--sky-deep);
   padding: 10px 24px;
   cursor: pointer;
   white-space: nowrap;
@@ -296,7 +298,7 @@ body {
 
 .input-form__submit:active:not(:disabled) {
   transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--sky-dark);
+  box-shadow: 0 1px 0 var(--sky-deep);
 }
 
 /* 無効時は opacity ではなく不透明な色で表現する（背景のドット模様が透けないように） */
@@ -313,7 +315,7 @@ body {
 }
 
 button:focus-visible {
-  outline: 3px solid var(--sky);
+  outline: 3px solid var(--sky-dark);
   outline-offset: 2px;
 }
 
@@ -323,7 +325,7 @@ button:focus-visible {
   margin: 0;
   text-align: center;
   font-weight: 700;
-  color: var(--sky);
+  color: var(--sky-dark);
 }
 
 .judging__cursor {
