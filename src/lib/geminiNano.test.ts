@@ -123,6 +123,28 @@ describe('NanoSession.judgeEnglishOrigin', () => {
     expect(promptモック.mock.calls[0][0]).toContain('コントロール')
   })
 
+  it('プロンプトに複合語の englishWord は全体に対応する英語表現とする指示を含める', async () => {
+    // 実機でモデルが「アルミサッシ」の englishWord に一部のパーツだけの sash を
+    // 返したことを確認したため、全体の英語表現（aluminum sash）を求める指示を明記する
+    promptモック.mockResolvedValue(
+      JSON.stringify({
+        inputType: 'compound',
+        origin: 'wasei_eigo',
+        englishWord: 'aluminum sash',
+        parts: [
+          { japanese: 'アルミ', englishWord: 'aluminium' },
+          { japanese: 'サッシ', englishWord: 'sash' },
+        ],
+        note: '',
+      }),
+    )
+    const セッション = await createNanoSession()
+
+    await セッション.judgeEnglishOrigin('アルミサッシ')
+
+    expect(promptモック.mock.calls[0][0]).toContain('複合語全体に対応する英語表現')
+  })
+
   it('語源分類のプロンプトに「直接の借用元が英語なら english」の基準を含める', async () => {
     // サッシ（英語 sash 経由。sash 自体はフランス語 châssis 起源）のような単語が
     // 「さらに遡れば他言語」という理由で other_language に誤分類されるのを防ぐための基準

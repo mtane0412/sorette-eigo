@@ -82,9 +82,19 @@ export async function judgeWord(input: string, deps: JudgeDeps): Promise<JudgeRe
     )
   }
 
+  // モデルが複合語の englishWord に一部のパーツだけの英単語を返すことがある
+  // （実機で「アルミサッシ」に sash が返ることを確認）。その場合、全体照会で
+  // パーツの単語が辞書ヒットして「複合語全体＝その英単語」と誤判定してしまうため、
+  // 全体照会をスキップしてパーツ判定に進む
+  const 全体の英単語が一部のパーツのみを表す =
+    由来判定.inputType === 'compound' &&
+    由来判定.englishWord !== null &&
+    由来判定.parts.length >= 2 &&
+    由来判定.parts.some((パーツ) => パーツ.englishWord === 由来判定.englishWord)
+
   // まず入力全体をひとつの英単語（または英語表現）として辞書確認する
   let 全体の辞書結果: DictionaryLookupResult | null = null
-  if (由来判定.isEnglishOrigin && 由来判定.englishWord !== null) {
+  if (由来判定.isEnglishOrigin && 由来判定.englishWord !== null && !全体の英単語が一部のパーツのみを表す) {
     deps.onStep?.('checking_dictionary')
     全体の辞書結果 = await deps.lookupEnglishWord(由来判定.englishWord)
 
@@ -100,7 +110,8 @@ export async function judgeWord(input: string, deps: JudgeDeps): Promise<JudgeRe
     return {
       input: 判定対象,
       verdict: 'english_compound',
-      englishWord: 由来判定.englishWord,
+      // 一部のパーツだけを表す英単語は、複合語全体の対応語として表示しない
+      englishWord: 全体の英単語が一部のパーツのみを表す ? null : 由来判定.englishWord,
       note: 由来判定.note,
       dictionary: 全体の辞書結果,
       explanation: null,

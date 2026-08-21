@@ -339,6 +339,46 @@ describe('judgeWord: 複合語の判定', () => {
     expect(依存モック.lookupEnglishWord).toHaveBeenCalledWith('sash')
   })
 
+  it('全体の英単語がパーツ 1 つの英単語と同じ場合は全体照会せずパーツ判定する', async () => {
+    // 実機で確認した誤判定の再現: モデルが複合語全体の英語表現ではなく
+    // 「サッシ」の分だけの sash を englishWord に返すと、全体照会で sash が
+    // 辞書ヒットして「アルミサッシ＝英語(sash)」になってしまう
+    依存モック.judgeEnglishOrigin.mockResolvedValue({
+      inputType: 'compound',
+      isEnglishOrigin: true,
+      englishWord: 'sash',
+      parts: [
+        { japanese: 'アルミ', englishWord: 'aluminium' },
+        { japanese: 'サッシ', englishWord: 'sash' },
+      ],
+      note: '英語の sash が語源の複合語です。',
+    })
+    依存モック.lookupEnglishWord.mockImplementation(async (単語: string) => {
+      if (単語 === 'aluminium') return アルミの辞書結果
+      if (単語 === 'sash') return サッシの辞書結果
+      return 辞書ミス結果
+    })
+
+    const 結果 = await judgeWord('アルミサッシ', 依存モック)
+
+    expect(結果.verdict).toBe('english_compound')
+    // 一部のパーツだけを表す英単語は複合語全体の対応語として表示しない
+    expect(結果.englishWord).toBeNull()
+    expect(結果.parts).toEqual([
+      { japanese: 'アルミ', englishWord: 'aluminium', dictionary: アルミの辞書結果 },
+      { japanese: 'サッシ', englishWord: 'sash', dictionary: サッシの辞書結果 },
+    ])
+    // 全体照会はスキップし、パーツ 2 つ分だけ照会する
+    expect(依存モック.lookupEnglishWord).toHaveBeenCalledTimes(2)
+    expect(依存モック.explainWord).not.toHaveBeenCalled()
+    expect(依存モック.makeExampleSentences).not.toHaveBeenCalled()
+    // 全体照会が無いため checking_dictionary は通知しない
+    expect(依存モック.onStep.mock.calls.map((呼び出し) => 呼び出し[0])).toEqual([
+      'judging_origin',
+      'checking_parts',
+    ])
+  })
+
   it('パーツの英単語がどれも辞書に無ければ従来の not_in_dictionary にフォールバックする', async () => {
     依存モック.judgeEnglishOrigin.mockResolvedValue(アルミサッシ由来判定)
     依存モック.lookupEnglishWord.mockResolvedValue(辞書ミス結果)
