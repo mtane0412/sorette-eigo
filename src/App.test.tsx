@@ -6,12 +6,13 @@
  * 一連の流れを検証します。localStorage は jsdom の実装をそのまま使います。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 import { checkAvailability, createNanoSession, type NanoSession } from './lib/geminiNano'
 import { lookupEnglishWord } from './lib/dictionary'
 import { addHistoryEntry } from './lib/history'
+import type { ExampleSentence } from './types'
 
 vi.mock('./lib/geminiNano', async (importOriginal) => {
   const 元モジュール = await importOriginal<typeof import('./lib/geminiNano')>()
@@ -112,6 +113,75 @@ describe('App', () => {
     expect(screen.getAllByText('コントロール').length).toBeGreaterThanOrEqual(2)
     // 使い終わったセッションは破棄される
     expect(セッションモック.destroy).toHaveBeenCalled()
+  })
+
+  it('判定の途中経過を段階的に表示する（スタンプ → 解説 → 例文）', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    セッションモック.judgeEnglishOrigin.mockResolvedValue({
+      isEnglishOrigin: true,
+      englishWord: 'control',
+      note: '英語の control が語源です。',
+    })
+    vi.mocked(lookupEnglishWord).mockResolvedValue({
+      exists: true,
+      phonetic: '/kənˈtɹəʊl/',
+      meanings: [{ partOfSpeech: 'noun', definition: 'The ability to influence.' }],
+    })
+    // 解説・例文の生成は手動で完了させ、フェーズごとの表示を検証できるようにする
+    let 解説を返す!: (解説: string) => void
+    セッションモック.explainWord.mockReturnValue(
+      new Promise<string>((resolve) => {
+        解説を返す = resolve
+      }),
+    )
+    let 例文を返す!: (例文: ExampleSentence[]) => void
+    セッションモック.makeExampleSentences.mockReturnValue(
+      new Promise<ExampleSentence[]>((resolve) => {
+        例文を返す = resolve
+      }),
+    )
+    render(<App />)
+
+    await userEvent.type(await screen.findByRole('textbox'), 'コントロール')
+    await userEvent.click(screen.getByRole('button', { name: '判定する' }))
+
+    // 辞書チェック完了時点: スタンプと英単語は表示済み、解説・例文はまだ
+    expect(await screen.findByText('英語です！')).toBeInTheDocument()
+    expect(screen.getByText('control')).toBeInTheDocument()
+    expect(screen.queryByText('解説')).not.toBeInTheDocument()
+    expect(screen.getByText('解説を生成中…')).toBeInTheDocument()
+
+    // 解説の生成完了: 解説が追加表示され、例文はまだ
+    await act(async () => {
+      解説を返す('control は「制御」を意味します。')
+    })
+    expect(await screen.findByText('control は「制御」を意味します。')).toBeInTheDocument()
+    expect(screen.queryByText('I can control it.')).not.toBeInTheDocument()
+    expect(screen.getByText('例文を作成中…')).toBeInTheDocument()
+
+    // 例文の生成完了: 例文まで表示され、プログレス表示が消える
+    await act(async () => {
+      例文を返す([
+        { english: 'I can control it.', japanese: '私はそれをコントロールできます。' },
+      ])
+    })
+    expect(await screen.findByText('I can control it.')).toBeInTheDocument()
+    expect(screen.queryByText('例文を作成中…')).not.toBeInTheDocument()
+  })
+
+  it('例文の生成に失敗しても、それまでの途中結果とエラーを両方表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    英語判定が成功するように仕込む()
+    セッションモック.makeExampleSentences.mockRejectedValue(new Error('例文の生成に失敗'))
+    render(<App />)
+
+    await userEvent.type(await screen.findByRole('textbox'), 'コントロール')
+    await userEvent.click(screen.getByRole('button', { name: '判定する' }))
+
+    // エラーは表示しつつ、確定済みの判定と解説は消さずに残す
+    expect(await screen.findByRole('alert')).toHaveTextContent('例文の生成に失敗')
+    expect(screen.getByText('英語です！')).toBeInTheDocument()
+    expect(screen.getByText('control は「制御」を意味します。')).toBeInTheDocument()
   })
 
   it('判定に失敗したらエラーメッセージを表示する', async () => {

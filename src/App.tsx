@@ -119,6 +119,8 @@ export default function App() {
         explainWord: (英単語, 元入力) => セッション!.explainWord(英単語, 元入力),
         makeExampleSentences: (英単語) => セッション!.makeExampleSentences(英単語),
         onStep: set判定中ステップ,
+        // フェーズ完了ごとの途中結果を即座に画面へ反映する（履歴保存は最終結果のみ）
+        onProgress: set判定結果,
       })
 
       const エントリ = addHistoryEntry(結果)
@@ -221,14 +223,15 @@ export default function App() {
           </div>
         )}
 
+        {判定結果 !== null && <ResultView result={判定結果} />}
+
+        {/* 途中結果のカードの下に「次のフェーズを生成中」であることを示す */}
         {判定中ステップ !== null && (
           <p className="judging" aria-live="polite">
             <span className="judging__cursor" aria-hidden="true">▚</span>
             {ステップ表示[判定中ステップ]}
           </p>
         )}
-
-        {判定結果 !== null && <ResultView result={判定結果} />}
 
         {履歴破損 && (
           <div className="error" role="alert">

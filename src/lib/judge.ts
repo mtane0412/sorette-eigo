@@ -33,6 +33,12 @@ export interface JudgeDeps {
   makeExampleSentences(englishWord: string): Promise<ExampleSentence[]>
   /** 進行状況の通知先（UI のプログレス表示用） */
   onStep?: (step: JudgeStep) => void
+  /**
+   * フェーズ完了ごとの途中結果の通知先（UI の段階表示用）。
+   * verdict が確定する辞書チェック完了後から、次フェーズの開始前に通知します。
+   * 途中で最終結果が確定するケース（not_english / not_in_dictionary）では呼びません。
+   */
+  onProgress?: (partialResult: JudgeResult) => void
 }
 
 /**
@@ -86,19 +92,25 @@ export async function judgeWord(input: string, deps: JudgeDeps): Promise<JudgeRe
     }
   }
 
-  deps.onStep?.('explaining')
-  const 解説 = await deps.explainWord(由来判定.englishWord, 判定対象)
-
-  deps.onStep?.('making_examples')
-  const 例文 = await deps.makeExampleSentences(由来判定.englishWord)
-
-  return {
+  // ここで verdict: english が確定するため、以降は解説・例文ができ次第
+  // 途中結果を通知して UI に段階的に反映できるようにする
+  const 途中結果: JudgeResult = {
     input: 判定対象,
     verdict: 'english',
     englishWord: 由来判定.englishWord,
     note: 由来判定.note,
     dictionary: 辞書結果,
-    explanation: 解説,
-    examples: 例文,
+    explanation: null,
+    examples: [],
   }
+  deps.onProgress?.(途中結果)
+
+  deps.onStep?.('explaining')
+  const 解説 = await deps.explainWord(由来判定.englishWord, 判定対象)
+  deps.onProgress?.({ ...途中結果, explanation: 解説 })
+
+  deps.onStep?.('making_examples')
+  const 例文 = await deps.makeExampleSentences(由来判定.englishWord)
+
+  return { ...途中結果, explanation: 解説, examples: 例文 }
 }
