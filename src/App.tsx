@@ -1,7 +1,7 @@
 /**
  * アプリ全体の統合コンポーネント。
  *
- * 「それって英語？」— 英語禁止プレイ中の配信者向けに、日本語の単語が
+ * 「それってエイゴ？」— 英語禁止プレイ中の配信者向けに、日本語の単語が
  * 英語由来かどうかをその場で判定するサービスのルートコンポーネントです。
  *
  * 状態遷移:
@@ -10,7 +10,8 @@
  * 3. 単語を受け取り、判定パイプラインを実行して結果を表示
  * 4. 判定結果は localStorage の履歴に保存
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { InputForm } from './components/InputForm'
 import { ResultView } from './components/ResultView'
 import { HistoryList } from './components/HistoryList'
@@ -54,6 +55,8 @@ export default function App() {
   const [エラー, setエラー] = useState<string | null>(null)
   const [履歴, set履歴] = useState<HistoryEntry[]>([])
   const [履歴破損, set履歴破損] = useState(false)
+  /** 判定結果の表示領域（履歴クリック時のスクロール先） */
+  const 結果表示Ref = useRef<HTMLDivElement>(null)
 
   // 起動時: Gemini Nano の可用性チェックと履歴の読み込み
   useEffect(() => {
@@ -139,6 +142,16 @@ export default function App() {
     }
   }
 
+  /** 履歴のエントリを選択して過去の判定結果を再表示し、結果の位置までスクロールで戻る */
+  const 履歴の結果を表示する = (エントリ: HistoryEntry) => {
+    // 結果カードが描画されてからスクロール先の位置を測るため、同期的に再レンダリングする
+    flushSync(() => {
+      set判定結果(エントリ)
+    })
+    // スクロールの滑らかさは CSS の scroll-behavior に委ねる（reduced-motion 対応のため）
+    結果表示Ref.current?.scrollIntoView()
+  }
+
   /** 履歴をすべて削除する */
   const 履歴をクリアする = () => {
     clearHistory()
@@ -149,11 +162,29 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
+        <a
+          className="app-github"
+          href="https://github.com/mtane0412/sorette-eigo"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub リポジトリ"
+        >
+          {/* GitHub のロゴ（Octicons の mark-github） */}
+          <svg viewBox="0 0 16 16" width="22" height="22" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"
+            />
+          </svg>
+        </a>
         <h1 className="app-title">
-          それって<span className="app-title__accent">英語</span>？
+          それって<span className="app-title__accent">エイゴ</span>？
         </h1>
         <p className="app-tagline">
           英語禁止プレイのお供に。カタカナ語が英語かどうかをその場で判定
+        </p>
+        <p className="app-disclaimer">
+          小型のAIモデルによる判定のため、間違えることが多々あります。
         </p>
       </header>
 
@@ -227,12 +258,16 @@ export default function App() {
           </div>
         )}
 
-        {判定結果 !== null && <ResultView result={判定結果} />}
+        {判定結果 !== null && (
+          <div ref={結果表示Ref}>
+            <ResultView result={判定結果} />
+          </div>
+        )}
 
         {/* 途中結果のカードの下に「次のフェーズを生成中」であることを示す */}
         {判定中ステップ !== null && (
           <p className="judging" aria-live="polite">
-            <span className="judging__cursor" aria-hidden="true">▚</span>
+            <span className="judging__cursor" aria-hidden="true">●</span>
             {ステップ表示[判定中ステップ]}
           </p>
         )}
@@ -247,7 +282,11 @@ export default function App() {
           </div>
         )}
 
-        <HistoryList entries={履歴} onSelect={set判定結果} onClear={履歴をクリアする} />
+        <HistoryList
+          entries={履歴}
+          onSelect={履歴の結果を表示する}
+          onClear={履歴をクリアする}
+        />
       </main>
 
       <footer className="app-footer">

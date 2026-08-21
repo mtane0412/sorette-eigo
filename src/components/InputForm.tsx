@@ -4,6 +4,9 @@
  * 日本語の単語を入力して判定を開始するためのフォームです。
  * IME での日本語入力を前提とするため、変換確定の Enter
  * （isComposing: true）では送信しないように制御しています。
+ *
+ * 送信後も入力値はクリアせず残します（判定中に「いま何を判定しているか」を
+ * 画面上で確認できるようにするためです）。
  */
 import { useState, type KeyboardEvent } from 'react'
 
@@ -26,7 +29,6 @@ export function InputForm({ disabled, onSubmit }: InputFormProps) {
       return
     }
     onSubmit(単語)
-    set入力値('')
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -51,7 +53,7 @@ export function InputForm({ disabled, onSubmit }: InputFormProps) {
         value={入力値}
         onChange={(event) => set入力値(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="カタカナ語を入力（例: コントロール）"
+        placeholder="カタカナ語を入力（例: フィッシャーマン）"
         aria-label="判定する単語"
         disabled={disabled}
         autoComplete="off"

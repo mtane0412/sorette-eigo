@@ -54,14 +54,22 @@ describe('InputForm', () => {
     expect(onSubmitモック).not.toHaveBeenCalled()
   })
 
-  it('送信すると入力欄が空になる', () => {
+  it('送信しても入力欄の内容を残す（何を判定中か分かるようにするため）', () => {
     render(<InputForm disabled={false} onSubmit={vi.fn()} />)
     const 入力欄 = screen.getByRole('textbox')
 
-    fireEvent.change(入力欄, { target: { value: 'コントロール' } })
+    fireEvent.change(入力欄, { target: { value: 'フィッシャーマン' } })
     fireEvent.keyDown(入力欄, { key: 'Enter' })
 
-    expect(入力欄).toHaveValue('')
+    expect(入力欄).toHaveValue('フィッシャーマン')
+  })
+
+  it('プレースホルダーに入力例「フィッシャーマン」を表示する', () => {
+    render(<InputForm disabled={false} onSubmit={vi.fn()} />)
+
+    expect(
+      screen.getByPlaceholderText('カタカナ語を入力（例: フィッシャーマン）'),
+    ).toBeInTheDocument()
   })
 
   it('disabled のときは入力欄とボタンが無効になり送信できない', () => {

@@ -77,6 +77,34 @@ function 英語判定が成功するように仕込む() {
 }
 
 describe('App', () => {
+  it('サービス名「それってエイゴ？」を見出しに表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /それってエイゴ？/ }),
+    ).toBeInTheDocument()
+  })
+
+  it('GitHub リポジトリへのリンクを表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    render(<App />)
+
+    const リンク = await screen.findByRole('link', { name: 'GitHub リポジトリ' })
+    expect(リンク).toHaveAttribute('href', 'https://github.com/mtane0412/sorette-eigo')
+  })
+
+  it('小型モデルの判定結果を鵜呑みにしないよう促す注意書きをヘッダーに表示する', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    render(<App />)
+
+    const 注意書き = await screen.findByText(
+      '小型のAIモデルによる判定のため、間違えることが多々あります。',
+    )
+    // タグラインの下（ヘッダー内）に配置されていることを確認する
+    expect(注意書き.closest('header')).not.toBeNull()
+  })
+
   it('モデルが利用可能なら入力フォームを表示する', async () => {
     vi.mocked(checkAvailability).mockResolvedValue('available')
     render(<App />)
@@ -204,6 +232,32 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: '判定する' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('モデルの呼び出しに失敗')
+  })
+
+  it('履歴のエントリをクリックすると結果を再表示し、結果の位置までスクロールで戻る', async () => {
+    vi.mocked(checkAvailability).mockResolvedValue('available')
+    addHistoryEntry(
+      {
+        input: 'クラフト',
+        verdict: 'english',
+        englishWord: 'craft',
+        note: '',
+        dictionary: { exists: true, phonetic: null, meanings: [] },
+        explanation: '解説',
+        examples: [],
+      },
+      1000,
+    )
+    // jsdom は scrollIntoView を実装していないため、スパイで置き換えて呼び出しを検証する
+    const scrollIntoViewモック = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoViewモック
+    render(<App />)
+
+    await userEvent.click(await screen.findByText('クラフト'))
+
+    // 過去の判定結果が再表示され、その位置までスクロールする
+    expect(screen.getByText('英語です！')).toBeInTheDocument()
+    expect(scrollIntoViewモック).toHaveBeenCalled()
   })
 
   it('保存済みの履歴を起動時に表示し、クリアできる', async () => {
