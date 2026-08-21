@@ -5,23 +5,17 @@
  * 複合語の分解（アルミサッシ → アルミ + サッシ）と、品詞情報による
  * 文章の検出（助詞・判定詞を含むか）を決定的に行うのが目的です。
  *
- * 認証はブラウザの CORS 制約により User-Agent ヘッダーが使えないため、
- * appid クエリパラメータで行います。Client ID はクライアントサイドへの
- * 埋め込みを前提とした識別子であり、秘密鍵ではありません。
+ * リクエストは Yahoo API を直接呼ばず、自前のプロキシ
+ * （Cloudflare Worker: workers/morphology）を経由します。
+ * Yahoo の Client ID を Worker のシークレットとして秘匿し、
+ * クライアント配布物に含めないためです。
  *
- * Content-Type は text/plain で送ります。application/json は CORS の
- * preflight（OPTIONS）を発生させますが、この API は OPTIONS に 400 を
- * 返すため（実測: 2026-08-21）、CORS-safelisted な text/plain の
- * シンプルリクエストにして preflight 自体を回避します
- * （text/plain でも API が正常に応答することを実測で確認済み）。
+ * Content-Type は CORS-safelisted な text/plain で送り、
+ * preflight（OPTIONS）の往復を発生させないシンプルリクエストにします。
  */
 
-/** Yahoo!テキスト解析API（JSON-RPC）のエンドポイント */
-const YAHOO_JLP_ENDPOINT = 'https://jlp.yahooapis.jp/jsonrpc'
-
-/** Yahoo!デベロッパーネットワークの Client ID */
-const YAHOO_CLIENT_ID =
-  'dmVyPTIwMjUwNyZpZD01VVZqM0tLT1NSJmhhc2g9TjJReE1XRmpNMlpsT1RsbU9HSTFNQQ'
+/** 形態素解析プロキシ（Cloudflare Worker）のエンドポイント */
+const MORPHOLOGY_PROXY_ENDPOINT = 'https://sorette-eigo-morphology.mtane0412.workers.dev/'
 
 /** リクエストボディの上限バイト数（Yahoo!テキスト解析APIの制限が 4KB のため） */
 const MAX_REQUEST_BYTES = 4096
@@ -95,9 +89,9 @@ export async function analyzeMorphemes(text: string): Promise<MorphToken[]> {
 
   let response: Response
   try {
-    response = await fetch(`${YAHOO_JLP_ENDPOINT}?appid=${encodeURIComponent(YAHOO_CLIENT_ID)}`, {
+    response = await fetch(MORPHOLOGY_PROXY_ENDPOINT, {
       method: 'POST',
-      // application/json だと preflight が発生して失敗するため text/plain で送る（ファイル冒頭コメント参照）
+      // preflight を発生させないため text/plain で送る（ファイル冒頭コメント参照）
       headers: { 'Content-Type': 'text/plain' },
       body: リクエストボディ,
     })
