@@ -110,6 +110,18 @@ body {
   font-weight: 500;
 }
 
+/* 小型モデルの精度についての注意書き（タグライン直下） */
+.app-disclaimer {
+  width: fit-content;
+  margin: 10px auto 0;
+  padding: 4px 18px;
+  color: var(--gold-dark);
+  background: var(--gold-soft);
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 /* ヘッダー右上の GitHub リンク */
 .app-github {
   position: absolute;
@@ -716,18 +728,6 @@ button:focus-visible {
   color: var(--muted);
   font-size: 0.8rem;
   text-align: center;
-}
-
-/* 小型モデルの精度についての注意書き */
-.app-disclaimer {
-  width: fit-content;
-  margin: 0 auto 10px;
-  padding: 4px 18px;
-  color: var(--gold-dark);
-  background: var(--gold-soft);
-  border-radius: var(--radius-pill);
-  font-size: 0.85rem;
-  font-weight: 500;
 }
 
 .app-footer a {

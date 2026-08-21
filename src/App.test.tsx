@@ -94,13 +94,15 @@ describe('App', () => {
     expect(リンク).toHaveAttribute('href', 'https://github.com/mtane0412/sorette-eigo')
   })
 
-  it('小型モデルの判定結果を鵜呑みにしないよう促す注意書きを表示する', async () => {
+  it('小型モデルの判定結果を鵜呑みにしないよう促す注意書きをヘッダーに表示する', async () => {
     vi.mocked(checkAvailability).mockResolvedValue('available')
     render(<App />)
 
-    expect(
-      await screen.findByText(/小型のAIモデルによる判定のため、間違えることがあります/),
-    ).toBeInTheDocument()
+    const 注意書き = await screen.findByText(
+      '小型のAIモデルによる判定のため、間違えることが多々あります。',
+    )
+    // タグラインの下（ヘッダー内）に配置されていることを確認する
+    expect(注意書き.closest('header')).not.toBeNull()
   })
 
   it('モデルが利用可能なら入力フォームを表示する', async () => {

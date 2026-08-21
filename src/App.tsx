@@ -170,6 +170,9 @@ export default function App() {
         <p className="app-tagline">
           英語禁止プレイのお供に。カタカナ語が英語かどうかをその場で判定
         </p>
+        <p className="app-disclaimer">
+          小型のAIモデルによる判定のため、間違えることが多々あります。
+        </p>
       </header>
 
       <main className="app-main">
@@ -266,9 +269,6 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <p className="app-disclaimer">
-          小型のAIモデルによる判定のため、間違えることがあります。結果は参考程度にどうぞ。
-        </p>
         <p>
           判定は Chrome 内蔵の Gemini Nano がブラウザの中だけで行います。
           入力した単語が外部に送られるのは、単語の分解（
