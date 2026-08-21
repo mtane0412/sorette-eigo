@@ -208,6 +208,20 @@ function 英単語を正規化する(englishWord: string): string | null {
 }
 
 /**
+ * パーツの日本語表記が英語由来（外来語）でありうるかを判定します。
+ *
+ * 英語からの外来語は原則カタカナ（IT のような英字表記を含む）で書かれるため、
+ * 漢字・ひらがなのみのパーツ（窓・手紙など）に返された英単語は
+ * 語源ではなく対訳（翻訳）とみなして採用しません
+ * （実機で「窓サッシ」の「窓」に window が返ることを確認）。
+ * 倶楽部（club）のような当て字は拾えなくなりますが、稀なケースとして許容します。
+ */
+function 英語由来でありうる表記か(japanese: string): boolean {
+  // カタカナ（全角・半角）または英字を 1 文字でも含むかどうか
+  return /[゠-ヿｦ-ﾟA-Za-z]/.test(japanese)
+}
+
+/**
  * 例文生成の出力が期待した形かをランタイムで検証します。
  *
  * @throws {GeminiNanoError} examples が配列でない・要素の形が不正な場合
@@ -347,6 +361,8 @@ export class NanoSession {
       '',
       'inputType が compound の場合は、parts に構成パーツを先頭から順に入れてください。',
       '各パーツの japanese に日本語表記を、englishWord に対応する英単語の綴り（英語由来でないパーツは空文字）を入れてください。',
+      'パーツの englishWord には語源として対応する英単語だけを入れ、意味の対訳（翻訳）を入れてはいけません。',
+      '例: 窓サッシ → 窓 は日本語固有なので空文字、サッシ は英語 sash 由来なので sash。パン はポルトガル語由来なので空文字。',
       'compound でない場合、parts は空配列にしてください。',
       '',
       'note には語源の短い補足を日本語で書いてください。',
@@ -367,7 +383,10 @@ export class NanoSession {
             .filter((パーツ) => パーツ.japanese.trim() !== '')
             .map((パーツ) => ({
               japanese: パーツ.japanese.trim(),
-              englishWord: 英単語を正規化する(パーツ.englishWord),
+              // 漢字・ひらがなのみのパーツの英単語は対訳とみなして採用しない
+              englishWord: 英語由来でありうる表記か(パーツ.japanese)
+                ? 英単語を正規化する(パーツ.englishWord)
+                : null,
             }))
         : []
     return {
