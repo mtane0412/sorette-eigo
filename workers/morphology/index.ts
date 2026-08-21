@@ -20,22 +20,19 @@
 /** Yahoo!テキスト解析API（JSON-RPC）のエンドポイント */
 const YAHOO_JLP_ENDPOINT = 'https://jlp.yahooapis.jp/jsonrpc'
 
-/** リクエストを許可するオリジン（アプリの配信元・本番） */
-const ALLOWED_ORIGINS = [
-  // 本番（GitHub Pages）
-  'https://mtane0412.github.io',
-]
-
 /**
- * ローカル開発のオリジンにマッチするパターン。
- * vite はポートが使用中だと 5174 などへ自動的にずれるため、
- * localhost / 127.0.0.1 はポート番号によらず許可します。
+ * リクエストを許可するオリジン（アプリの配信元・本番のみ）。
+ *
+ * localhost は許可しません。許可すると第三者が自分のローカルページから
+ * このプロキシへ相乗りできてしまうためです。ローカル開発では vite の
+ * dev プロキシ（vite.config.ts の server.proxy）が Yahoo API へ直接
+ * 中継するため、この Worker を経由しません。
  */
-const ローカル開発オリジン = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/
+const ALLOWED_ORIGINS = ['https://mtane0412.github.io']
 
 /** オリジンがこのプロキシの利用を許可されているかを返します。 */
 function 許可されたオリジンか(オリジン: string): boolean {
-  return ALLOWED_ORIGINS.includes(オリジン) || ローカル開発オリジン.test(オリジン)
+  return ALLOWED_ORIGINS.includes(オリジン)
 }
 
 /** Worker が参照する環境変数（wrangler secret で設定する） */

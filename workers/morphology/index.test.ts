@@ -67,41 +67,11 @@ describe('形態素解析プロキシ', () => {
     expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe(本番オリジン)
   })
 
-  it('ローカル開発（vite dev サーバー）のオリジンも許可する', async () => {
+  it('localhost からのリクエストも拒否する（ローカル開発は vite の dev プロキシを使う）', async () => {
+    // localhost を許可すると、第三者が自分のローカルページからこのプロキシへ
+    // 相乗りできてしまうため、本番プロキシは GitHub Pages のオリジンのみ許可する
     const レスポンス = await worker.fetch(
       許可オリジンからのリクエスト('http://localhost:5173'),
-      テスト環境,
-    )
-
-    expect(レスポンス.status).toBe(200)
-    expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173')
-  })
-
-  it('ローカル開発のオリジンはポート番号によらず許可する', async () => {
-    // vite はポートが使用中だと 5174 などへ自動的にずれるため、
-    // localhost はポート固定ではなくパターンで許可する
-    const レスポンス = await worker.fetch(
-      許可オリジンからのリクエスト('http://localhost:5174'),
-      テスト環境,
-    )
-
-    expect(レスポンス.status).toBe(200)
-    expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5174')
-  })
-
-  it('127.0.0.1 でのアクセスも許可する', async () => {
-    const レスポンス = await worker.fetch(
-      許可オリジンからのリクエスト('http://127.0.0.1:5173'),
-      テスト環境,
-    )
-
-    expect(レスポンス.status).toBe(200)
-    expect(レスポンス.headers.get('Access-Control-Allow-Origin')).toBe('http://127.0.0.1:5173')
-  })
-
-  it('localhost を装った別ドメインのオリジンは拒否する', async () => {
-    const レスポンス = await worker.fetch(
-      許可オリジンからのリクエスト('http://localhost.evil.example.com'),
       テスト環境,
     )
 

@@ -5,17 +5,20 @@
  * 複合語の分解（アルミサッシ → アルミ + サッシ）と、品詞情報による
  * 文章の検出（助詞・判定詞を含むか）を決定的に行うのが目的です。
  *
- * リクエストは Yahoo API を直接呼ばず、自前のプロキシ
- * （Cloudflare Worker: workers/morphology）を経由します。
- * Yahoo の Client ID を Worker のシークレットとして秘匿し、
- * クライアント配布物に含めないためです。
+ * リクエストは Yahoo API を直接呼ばず、プロキシを経由します。
+ * Yahoo の Client ID をクライアント配布物に含めないためです。
+ * - 本番: Cloudflare Worker（workers/morphology）。Client ID は Worker のシークレット
+ * - 開発: vite の dev プロキシ（vite.config.ts の server.proxy）。Client ID は .env.local
+ *   ※ 本番 Worker は GitHub Pages のオリジンのみ許可するため、localhost からは使えません
  *
  * Content-Type は CORS-safelisted な text/plain で送り、
  * preflight（OPTIONS）の往復を発生させないシンプルリクエストにします。
  */
 
-/** 形態素解析プロキシ（Cloudflare Worker）のエンドポイント */
-const MORPHOLOGY_PROXY_ENDPOINT = 'https://sorette-eigo-morphology.mtane0412.workers.dev/'
+/** 形態素解析プロキシのエンドポイント（本番: Cloudflare Worker、開発: vite の dev プロキシ） */
+const MORPHOLOGY_PROXY_ENDPOINT = import.meta.env.PROD
+  ? 'https://sorette-eigo-morphology.mtane0412.workers.dev/'
+  : '/api/morphology'
 
 /** リクエストボディの上限バイト数（Yahoo!テキスト解析APIの制限が 4KB のため） */
 const MAX_REQUEST_BYTES = 4096

@@ -45,8 +45,10 @@ describe('analyzeMorphemes', () => {
     ])
   })
 
-  it('プロキシ（Cloudflare Worker）へ preflight が発生しない形式で POST する', async () => {
-    // Client ID はプロキシ側のシークレットとして秘匿するため、リクエストには含めない。
+  it('プロキシへ preflight が発生しない形式で POST する（Client ID は含めない）', async () => {
+    // Client ID はプロキシ側（本番: Cloudflare Worker のシークレット、
+    // 開発: vite の dev プロキシが .env.local から注入）で付与するため、
+    // クライアントのリクエストには含めない。
     // Content-Type は CORS-safelisted な text/plain にして、preflight（OPTIONS）の
     // 往復を発生させずシンプルリクエストとして送る
     fetchモック.mockResolvedValue(
@@ -56,7 +58,8 @@ describe('analyzeMorphemes', () => {
     await analyzeMorphemes('アルミサッシ')
 
     const [リクエストURL, リクエスト設定] = fetchモック.mock.calls[0]
-    expect(リクエストURL).toBe('https://sorette-eigo-morphology.mtane0412.workers.dev/')
+    // テストは開発モード相当（import.meta.env.PROD が false）のため dev プロキシのパスになる
+    expect(リクエストURL).toBe('/api/morphology')
     expect(リクエストURL).not.toContain('appid')
     expect(リクエスト設定.method).toBe('POST')
     expect(リクエスト設定.headers).toEqual({ 'Content-Type': 'text/plain' })
