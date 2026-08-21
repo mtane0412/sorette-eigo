@@ -45,9 +45,11 @@ describe('analyzeMorphemes', () => {
     ])
   })
 
-  it('Client ID をクエリパラメータで渡し、JSON-RPC 形式で POST する', async () => {
-    // ブラウザからは User-Agent ヘッダーでの認証が使えない（CORS の
-    // access-control-allow-headers が Content-Type のみ）ため、appid クエリで認証する
+  it('Client ID をクエリパラメータで渡し、preflight が発生しない形式で POST する', async () => {
+    // ブラウザからは User-Agent ヘッダーでの認証が使えないため appid クエリで認証する。
+    // また Content-Type: application/json は CORS の preflight（OPTIONS）を発生させるが、
+    // この API は OPTIONS に 400 を返すため（実測）、CORS-safelisted な text/plain で
+    // シンプルリクエストとして送る（text/plain でも API は正常に応答することを実測で確認）
     fetchモック.mockResolvedValue(
       new Response(JSON.stringify(アルミサッシの正常レスポンス), { status: 200 }),
     )
@@ -57,7 +59,7 @@ describe('analyzeMorphemes', () => {
     const [リクエストURL, リクエスト設定] = fetchモック.mock.calls[0]
     expect(リクエストURL).toMatch(/^https:\/\/jlp\.yahooapis\.jp\/jsonrpc\?appid=.+$/)
     expect(リクエスト設定.method).toBe('POST')
-    expect(リクエスト設定.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(リクエスト設定.headers).toEqual({ 'Content-Type': 'text/plain' })
     expect(JSON.parse(リクエスト設定.body)).toEqual({
       id: '1',
       jsonrpc: '2.0',

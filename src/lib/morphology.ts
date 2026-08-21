@@ -5,10 +5,15 @@
  * 複合語の分解（アルミサッシ → アルミ + サッシ）と、品詞情報による
  * 文章の検出（助詞・判定詞を含むか）を決定的に行うのが目的です。
  *
- * 認証はブラウザの CORS 制約により User-Agent ヘッダーが使えないため
- * （access-control-allow-headers が Content-Type のみ）、appid クエリ
- * パラメータで行います。Client ID はクライアントサイドへの埋め込みを
- * 前提とした識別子であり、秘密鍵ではありません。
+ * 認証はブラウザの CORS 制約により User-Agent ヘッダーが使えないため、
+ * appid クエリパラメータで行います。Client ID はクライアントサイドへの
+ * 埋め込みを前提とした識別子であり、秘密鍵ではありません。
+ *
+ * Content-Type は text/plain で送ります。application/json は CORS の
+ * preflight（OPTIONS）を発生させますが、この API は OPTIONS に 400 を
+ * 返すため（実測: 2026-08-21）、CORS-safelisted な text/plain の
+ * シンプルリクエストにして preflight 自体を回避します
+ * （text/plain でも API が正常に応答することを実測で確認済み）。
  */
 
 /** Yahoo!テキスト解析API（JSON-RPC）のエンドポイント */
@@ -76,7 +81,8 @@ export async function analyzeMorphemes(text: string): Promise<MorphToken[]> {
   try {
     response = await fetch(`${YAHOO_JLP_ENDPOINT}?appid=${encodeURIComponent(YAHOO_CLIENT_ID)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // application/json だと preflight が発生して失敗するため text/plain で送る（ファイル冒頭コメント参照）
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         id: '1',
         jsonrpc: '2.0',
