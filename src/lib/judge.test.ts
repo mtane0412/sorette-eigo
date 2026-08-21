@@ -516,7 +516,8 @@ describe('judgeWord: 文章の入力', () => {
     ])
 
     await expect(judgeWord('これはペンです', 依存モック)).rejects.toThrow(
-      '文章の判定には対応していません',
+      // 案内の例には複合語（アルミサッシ等）ではなく単語を使う
+      '文章の判定には対応していません。単語をひとつ入力してください（例: コントロール）',
     )
     expect(依存モック.judgeEnglishOrigin).not.toHaveBeenCalled()
     expect(依存モック.lookupEnglishWord).not.toHaveBeenCalled()
