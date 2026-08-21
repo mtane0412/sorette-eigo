@@ -53,6 +53,12 @@ export function ResultView({ result }: ResultViewProps) {
 
       {result.note !== '' && <p className="result__note">{result.note}</p>}
 
+      {result.dictionary?.source === 'datamuse' && (
+        <p className="result__dict-source">
+          メイン辞書（Free Dictionary API）に接続できなかったため、予備辞書（Datamuse）で確認しました
+        </p>
+      )}
+
       {result.verdict === 'not_in_dictionary' && (
         <p className="result__hint">
           英語由来と推定されましたが、英語の辞書には載っていない綴りでした。

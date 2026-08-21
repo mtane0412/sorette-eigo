@@ -26,7 +26,15 @@ export interface ExampleSentence {
 }
 
 /**
- * Free Dictionary API による英単語の照会結果。
+ * 照会に使用した辞書の種別。
+ *
+ * - `dictionaryapi`: メイン辞書（Free Dictionary API）
+ * - `datamuse`: 予備辞書（Datamuse API）。メイン辞書が失敗したときのフォールバック先
+ */
+export type DictionarySource = 'dictionaryapi' | 'datamuse'
+
+/**
+ * 英単語の辞書照会結果。
  */
 export interface DictionaryLookupResult {
   /** 辞書に単語が存在するかどうか */
@@ -40,6 +48,11 @@ export interface DictionaryLookupResult {
     /** 定義文（英語） */
     definition: string
   }[]
+  /**
+   * 照会に使用した辞書。
+   * フォールバック導入前に保存された履歴データには存在しないため optional にしています。
+   */
+  source?: DictionarySource
 }
 
 /**

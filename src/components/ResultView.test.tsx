@@ -42,6 +42,31 @@ describe('ResultView', () => {
     expect(screen.getByText('The remote control is broken.')).toBeInTheDocument()
   })
 
+  it('予備辞書（Datamuse）で確認した場合はその旨を表示する', () => {
+    const 予備辞書の結果: JudgeResult = {
+      ...英語の判定結果,
+      dictionary: {
+        exists: true,
+        phonetic: null,
+        meanings: [{ partOfSpeech: 'noun', definition: 'An influence or authority.' }],
+        source: 'datamuse',
+      },
+    }
+    render(<ResultView result={予備辞書の結果} />)
+
+    expect(screen.getByText(/予備辞書（Datamuse）で確認しました/)).toBeInTheDocument()
+  })
+
+  it('メイン辞書で確認した場合は予備辞書の注記を表示しない', () => {
+    const メイン辞書の結果: JudgeResult = {
+      ...英語の判定結果,
+      dictionary: { ...英語の判定結果.dictionary!, source: 'dictionaryapi' },
+    }
+    render(<ResultView result={メイン辞書の結果} />)
+
+    expect(screen.queryByText(/予備辞書/)).not.toBeInTheDocument()
+  })
+
   it('英語でない場合はセーフ判定と補足のみ表示する', () => {
     const 結果: JudgeResult = {
       input: 'もちもち',

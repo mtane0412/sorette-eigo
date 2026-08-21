@@ -250,6 +250,10 @@ export default function App() {
           <a href="https://dictionaryapi.dev/" target="_blank" rel="noreferrer">
             Free Dictionary API
           </a>
+          、接続できないときは予備の
+          <a href="https://www.datamuse.com/api/" target="_blank" rel="noreferrer">
+            Datamuse API
+          </a>
           ）のみです。
         </p>
       </footer>
